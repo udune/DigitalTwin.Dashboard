@@ -13,5 +13,15 @@ namespace DigitalTwin.Dashboard.Models
         public float VelocityY { get; set; }
         public float VelocityZ { get; set; }
         public DateTime Timestamp { get; set; }
+
+        public AxisData()
+        {
+            Timestamp = DateTime.Now;
+        }
+
+        public override string ToString()
+        {
+            return $"X:{X:F1} Y:{Y:F1} Z:{Z:F1} | VX:{VelocityX:F1} VY:{VelocityY:F1} VZ:{VelocityZ:F1}";
+        }
     }
 }
