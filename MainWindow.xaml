@@ -5,8 +5,214 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DigitalTwin.Dashboard"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Digital Twin - Pick and Place System" 
+        Height="800" Width="1200"
+        WindowState="Maximized">
     <Grid>
-        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 헤더 -->
+        <Border Grid.Row="0" Background="#FF2D2D30" Height="60">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0">
+                <TextBlock Text="Digital Twin System" 
+                          FontSize="24" 
+                          FontWeight="Bold" 
+                          Foreground="White"/>
+                <TextBlock Text="PLC: ●" 
+                          Margin="30,0,0,0" 
+                          FontSize="16" 
+                          Foreground="LimeGreen"/>
+                <TextBlock Text="Unity: ●" 
+                          Margin="20,0,0,0" 
+                          FontSize="16" 
+                          Foreground="LimeGreen"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 메인 콘텐츠 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="350"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 좌측: 제어 패널 -->
+            <Border Grid.Column="0" 
+                    Background="#FF3E3E42" 
+                    Padding="10"
+                    BorderBrush="#FF007ACC" 
+                    BorderThickness="0,0,1,0">
+                <StackPanel>
+                    <TextBlock Text="제어 패널" 
+                              FontSize="20" 
+                              FontWeight="Bold" 
+                              Foreground="White" 
+                              Margin="0,0,0,20"/>
+
+                    <!-- 모드 선택 -->
+                    <GroupBox Header="운전 모드" 
+                             Foreground="White" 
+                             Margin="0,0,0,10">
+                        <StackPanel>
+                            <RadioButton Content="수동 모드" 
+                                       Foreground="White" 
+                                       IsChecked="True" 
+                                       Margin="0,5"/>
+                            <RadioButton Content="자동 모드" 
+                                       Foreground="White" 
+                                       Margin="0,5"/>
+                            <RadioButton Content="시뮬레이션 모드" 
+                                       Foreground="White" 
+                                       Margin="0,5"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- 제어 버튼 -->
+                    <Button Content="START" 
+                           Background="#FF007ACC" 
+                           Foreground="White" 
+                           Height="40" 
+                           Margin="0,10"/>
+                    <Button Content="STOP" 
+                           Background="#FFD13438" 
+                           Foreground="White" 
+                           Height="40" 
+                           Margin="0,5"/>
+                    <Button Content="RESET" 
+                           Background="#FF3E3E42" 
+                           Foreground="White" 
+                           Height="40" 
+                           Margin="0,5"/>
+                    <Button Content="원점 복귀" 
+                           Background="#FF3E3E42" 
+                           Foreground="White" 
+                           Height="40" 
+                           Margin="0,5"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 중앙: 차트 및 데이터 -->
+            <Grid Grid.Column="1" Background="#FF252526">
+                <TabControl>
+                    <TabItem Header="실시간 모니터링">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 위치 차트 -->
+                            <GroupBox Grid.Row="0" 
+                                     Header="축 위치 (mm)" 
+                                     Foreground="White" 
+                                     Margin="5">
+                                <!-- LiveCharts 들어갈 자리 -->
+                                <Border Background="#FF1E1E1E"/>
+                            </GroupBox>
+
+                            <!-- 속도 차트 -->
+                            <GroupBox Grid.Row="1" 
+                                     Header="축 속도 (mm/s)" 
+                                     Foreground="White" 
+                                     Margin="5">
+                                <Border Background="#FF1E1E1E"/>
+                            </GroupBox>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="알람 이력">
+                        <Grid Background="#FF1E1E1E">
+                            <!-- DataGrid 들어갈 자리 -->
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+
+            <!-- 우측: 상태 표시 -->
+            <Border Grid.Column="2" 
+                    Background="#FF3E3E42" 
+                    Padding="10"
+                    BorderBrush="#FF007ACC" 
+                    BorderThickness="1,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="시스템 상태" 
+                              FontSize="20" 
+                              FontWeight="Bold" 
+                              Foreground="White" 
+                              Margin="0,0,0,20"/>
+
+                    <!-- 축 상태 -->
+                    <GroupBox Header="축 위치" 
+                             Foreground="White" 
+                             Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" 
+                                      Text="X:" Foreground="White" 
+                                      VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" 
+                                      Text="0.0 mm" 
+                                      Foreground="LimeGreen" 
+                                      FontSize="16" 
+                                      FontWeight="Bold"
+                                      VerticalAlignment="Center" 
+                                      Margin="10,0,0,0"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" 
+                                      Text="Y:" Foreground="White" 
+                                      VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" 
+                                      Text="0.0 mm" 
+                                      Foreground="LimeGreen" 
+                                      FontSize="16" 
+                                      FontWeight="Bold"
+                                      VerticalAlignment="Center" 
+                                      Margin="10,0,0,0"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" 
+                                      Text="Z:" Foreground="White" 
+                                      VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" 
+                                      Text="0.0 mm" 
+                                      Foreground="LimeGreen" 
+                                      FontSize="16" 
+                                      FontWeight="Bold"
+                                      VerticalAlignment="Center" 
+                                      Margin="10,0,0,0"/>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- 통계 -->
+                    <GroupBox Header="금일 통계" 
+                             Foreground="White" 
+                             Margin="0,10,0,0">
+                        <StackPanel>
+                            <TextBlock Text="사이클 횟수: 0" 
+                                      Foreground="White" 
+                                      Margin="0,5"/>
+                            <TextBlock Text="평균 시간: 0.0s" 
+                                      Foreground="White" 
+                                      Margin="0,5"/>
+                            <TextBlock Text="알람: 0건" 
+                                      Foreground="Yellow" 
+                                      Margin="0,5"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
