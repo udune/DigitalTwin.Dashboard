@@ -20,5 +20,40 @@ namespace DigitalTwin.Dashboard
         {
             InitializeComponent();
         }
+
+        private void BtnStart_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void BtnStop_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void BtnReset_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void BtnHome_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void SliderX_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+
+        }
+
+        private void SliderY_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+
+        }
+
+        private void SliderZ_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+
+        }
     }
 }
