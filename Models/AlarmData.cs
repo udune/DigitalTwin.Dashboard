@@ -20,5 +20,13 @@ namespace DigitalTwin.Dashboard.Models
         }
 
         public string TimeString => Time.ToString("HH:mm:ss");
+
+        public string LevelIcon => Level switch
+        {
+            "Error" => "🔴",
+            "Warning" => "🟡",
+            "Info" => "🔵",
+            _ => "⚪"
+        };
     }
 }
