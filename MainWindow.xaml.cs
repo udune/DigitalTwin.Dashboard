@@ -72,6 +72,7 @@ namespace DigitalTwin.Dashboard
             _unityIPC.OnConnected += UnityIPC_OnConnected;
             _unityIPC.OnDisconnected += UnityIPC_OnDisconnected;
             _unityIPC.OnError += UnityIPC_OnError;
+            _unityIPC.OnAxisDataReceived += UnityIPC_OnAxisDataReceived;
         }
 
         private void InitializeTimers()
@@ -405,6 +406,31 @@ namespace DigitalTwin.Dashboard
             });
         }
 
+        private void UnityIPC_OnAxisDataReceived(AxisData data)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                // Unity에서 받은 데이터를 슬라이더에 반영
+                // ValueChanged 이벤트가 다시 발생하지 않도록 VirtualPLC 직접 업데이트
+                SliderX.Value = data.X;
+                SliderY.Value = data.Y;
+                SliderZ.Value = data.Z;
+
+                // 슬라이더 아래 텍스트 업데이트
+                TxtXValue.Text = $"{data.X:F1}";
+                TxtYValue.Text = $"{data.Y:F1}";
+                TxtZValue.Text = $"{data.Z:F1}";
+
+                // 현재 위치 표시 업데이트
+                TxtCurrentX.Text = $"{data.X:F1} mm";
+                TxtCurrentY.Text = $"{data.Y:F1} mm";
+                TxtCurrentZ.Text = $"{data.Z:F1} mm";
+
+                // VirtualPLC 위치 동기화 (슬라이더 이벤트 없이)
+                _virtualPLC.SetPosition(data.X, data.Y, data.Z);
+            });
+        }
+
         #endregion
 
         #region UI Helpers
@@ -456,6 +482,7 @@ namespace DigitalTwin.Dashboard
                 _unityIPC.OnConnected -= UnityIPC_OnConnected;
                 _unityIPC.OnDisconnected -= UnityIPC_OnDisconnected;
                 _unityIPC.OnError -= UnityIPC_OnError;
+                _unityIPC.OnAxisDataReceived -= UnityIPC_OnAxisDataReceived;
                 _unityIPC.Stop();
             }
         }

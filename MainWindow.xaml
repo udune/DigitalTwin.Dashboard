@@ -107,10 +107,9 @@
 
                         <!-- 제어 버튼 -->
                         <Button x:Name="BtnStart"
-                               Content="▶ START" 
-                               Background="#FF007ACC" 
-                               Foreground="White" 
-                               Height="45" 
+                               Content="▶ START"
+                               Foreground="White"
+                               Height="45"
                                FontSize="16"
                                FontWeight="Bold"
                                BorderThickness="0"
@@ -119,32 +118,51 @@
                                Click="BtnStart_Click">
                             <Button.Style>
                                 <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#FF007ACC"/>
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="{TemplateBinding Background}" 
+                                                <Border x:Name="border"
+                                                       Background="{TemplateBinding Background}"
                                                        CornerRadius="5"
-                                                       BorderThickness="0">
-                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                                       BorderThickness="2"
+                                                       BorderBrush="Transparent"
+                                                       RenderTransformOrigin="0.5,0.5">
+                                                    <Border.RenderTransform>
+                                                        <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                                    </Border.RenderTransform>
+                                                    <ContentPresenter HorizontalAlignment="Center"
                                                                     VerticalAlignment="Center"/>
                                                 </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#FF0084D6"/>
+                                                        <Setter TargetName="border" Property="BorderBrush" Value="#FF00A8FF"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#FF005A9E"/>
+                                                        <Setter TargetName="border" Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <ScaleTransform ScaleX="0.96" ScaleY="0.96"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="border" Property="Background" Value="#FF3E3E42"/>
+                                                        <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Setter.Value>
                                     </Setter>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#FF0084D6"/>
-                                        </Trigger>
-                                    </Style.Triggers>
                                 </Style>
                             </Button.Style>
                         </Button>
 
                         <Button x:Name="BtnStop"
-                               Content="■ STOP" 
-                               Background="#FFD13438" 
-                               Foreground="White" 
-                               Height="45" 
+                               Content="■ STOP"
+                               Foreground="White"
+                               Height="45"
                                FontSize="16"
                                FontWeight="Bold"
                                BorderThickness="0"
@@ -153,32 +171,51 @@
                                Click="BtnStop_Click">
                             <Button.Style>
                                 <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#FFD13438"/>
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="{TemplateBinding Background}" 
+                                                <Border x:Name="border"
+                                                       Background="{TemplateBinding Background}"
                                                        CornerRadius="5"
-                                                       BorderThickness="0">
-                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                                       BorderThickness="2"
+                                                       BorderBrush="Transparent"
+                                                       RenderTransformOrigin="0.5,0.5">
+                                                    <Border.RenderTransform>
+                                                        <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                                    </Border.RenderTransform>
+                                                    <ContentPresenter HorizontalAlignment="Center"
                                                                     VerticalAlignment="Center"/>
                                                 </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#FFE14044"/>
+                                                        <Setter TargetName="border" Property="BorderBrush" Value="#FFFF6B6B"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#FFB02A2E"/>
+                                                        <Setter TargetName="border" Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <ScaleTransform ScaleX="0.96" ScaleY="0.96"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="border" Property="Background" Value="#FF3E3E42"/>
+                                                        <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Setter.Value>
                                     </Setter>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#FFE14044"/>
-                                        </Trigger>
-                                    </Style.Triggers>
                                 </Style>
                             </Button.Style>
                         </Button>
 
                         <Button x:Name="BtnReset"
-                               Content="⟲ RESET" 
-                               Background="#FF3E3E42" 
-                               Foreground="White" 
-                               Height="40" 
+                               Content="⟲ RESET"
+                               Foreground="White"
+                               Height="40"
                                FontSize="14"
                                FontWeight="SemiBold"
                                BorderThickness="0"
@@ -187,23 +224,42 @@
                                Click="BtnReset_Click">
                             <Button.Style>
                                 <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#FF3E3E42"/>
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="{TemplateBinding Background}" 
+                                                <Border x:Name="border"
+                                                       Background="{TemplateBinding Background}"
                                                        CornerRadius="5"
-                                                       BorderThickness="0">
-                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                                       BorderThickness="2"
+                                                       BorderBrush="Transparent"
+                                                       RenderTransformOrigin="0.5,0.5">
+                                                    <Border.RenderTransform>
+                                                        <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                                    </Border.RenderTransform>
+                                                    <ContentPresenter HorizontalAlignment="Center"
                                                                     VerticalAlignment="Center"/>
                                                 </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#FF4E4E52"/>
+                                                        <Setter TargetName="border" Property="BorderBrush" Value="#FF6E6E72"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#FF2E2E32"/>
+                                                        <Setter TargetName="border" Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <ScaleTransform ScaleX="0.96" ScaleY="0.96"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Setter.Value>
                                     </Setter>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#FF4E4E52"/>
-                                        </Trigger>
-                                    </Style.Triggers>
                                 </Style>
                             </Button.Style>
                         </Button>
@@ -249,11 +305,11 @@
                             <StackPanel Margin="5">
                                 <!-- X축 -->
                                 <TextBlock Text="X축 (mm)" Foreground="White" FontSize="12" Margin="0,8,0,5"/>
-                                <Slider x:Name="SliderX" 
-                                       Minimum="-400" 
-                                       Maximum="400" 
+                                <Slider x:Name="SliderX"
+                                       Minimum="-400"
+                                       Maximum="400"
                                        Value="0"
-                                       TickFrequency="50"
+                                       TickFrequency="0.1"
                                        IsSnapToTickEnabled="True"
                                        ValueChanged="SliderX_ValueChanged"/>
                                 <TextBlock x:Name="TxtXValue" 
@@ -265,11 +321,11 @@
 
                                 <!-- Y축 -->
                                 <TextBlock Text="Y축 (mm)" Foreground="White" FontSize="12" Margin="0,15,0,5"/>
-                                <Slider x:Name="SliderY" 
-                                       Minimum="-300" 
-                                       Maximum="300" 
+                                <Slider x:Name="SliderY"
+                                       Minimum="-300"
+                                       Maximum="300"
                                        Value="0"
-                                       TickFrequency="50"
+                                       TickFrequency="0.1"
                                        IsSnapToTickEnabled="True"
                                        ValueChanged="SliderY_ValueChanged"/>
                                 <TextBlock x:Name="TxtYValue" 
@@ -281,11 +337,11 @@
 
                                 <!-- Z축 -->
                                 <TextBlock Text="Z축 (mm)" Foreground="White" FontSize="12" Margin="0,15,0,5"/>
-                                <Slider x:Name="SliderZ" 
-                                       Minimum="-60" 
-                                       Maximum="0" 
+                                <Slider x:Name="SliderZ"
+                                       Minimum="-60"
+                                       Maximum="0"
                                        Value="0"
-                                       TickFrequency="10"
+                                       TickFrequency="0.1"
                                        IsSnapToTickEnabled="True"
                                        ValueChanged="SliderZ_ValueChanged"/>
                                 <TextBlock x:Name="TxtZValue" 

@@ -1,11 +1,11 @@
 ﻿using DigitalTwin.Dashboard.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
-using static CommunityToolkit.Mvvm.ComponentModel.__Internals.__TaskExtensions.TaskAwaitableWithoutEndValidation;
 
 namespace DigitalTwin.Dashboard.Services
 {
@@ -13,14 +13,17 @@ namespace DigitalTwin.Dashboard.Services
     {
         private NamedPipeServerStream pipeServer;
         private StreamWriter writer;
+        private StreamReader reader;
         private bool isRunning = false;
         private bool isConnected = false;
+        private CancellationTokenSource readCancellation;
 
         public bool IsConnected => isConnected;
 
         public event Action OnConnected;
         public event Action OnDisconnected;
         public event Action<string> OnError;
+        public event Action<AxisData> OnAxisDataReceived;
 
         private const string PipeName = "DigitalTwinPipe";
 
@@ -32,14 +35,15 @@ namespace DigitalTwin.Dashboard.Services
             }
 
             isRunning = true;
+            readCancellation = new CancellationTokenSource();
 
             await Task.Run(async () =>
             {
                 try
                 {
                     pipeServer = new NamedPipeServerStream(
-                        PipeName, 
-                        PipeDirection.InOut, 
+                        PipeName,
+                        PipeDirection.InOut,
                         1,
                         PipeTransmissionMode.Byte,
                         PipeOptions.Asynchronous
@@ -56,8 +60,13 @@ namespace DigitalTwin.Dashboard.Services
                         AutoFlush = true
                     };
 
+                    reader = new StreamReader(pipeServer);
+
                     Console.WriteLine("유니티 연결 성공!");
                     OnConnected?.Invoke();
+
+                    // 읽기 루프 시작
+                    _ = StartReadLoop(readCancellation.Token);
                 }
                 catch (Exception e)
                 {
@@ -65,6 +74,72 @@ namespace DigitalTwin.Dashboard.Services
                     OnError?.Invoke($"Start 오류: {e.Message}");
                 }
             });
+        }
+
+        private async Task StartReadLoop(CancellationToken cancellationToken)
+        {
+            try
+            {
+                while (isRunning && !cancellationToken.IsCancellationRequested)
+                {
+                    string json = await reader.ReadLineAsync();
+
+                    if (json == null)
+                    {
+                        // 연결 종료
+                        isConnected = false;
+                        OnDisconnected?.Invoke();
+                        break;
+                    }
+
+                    ProcessMessage(json);
+                }
+            }
+            catch (IOException)
+            {
+                isConnected = false;
+                OnDisconnected?.Invoke();
+            }
+            catch (Exception e)
+            {
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    OnError?.Invoke($"읽기 오류: {e.Message}");
+                }
+            }
+        }
+
+        private void ProcessMessage(string json)
+        {
+            try
+            {
+                var jObject = JObject.Parse(json);
+                string messageType = jObject["type"]?.ToString();
+
+                if (messageType == "axis_data")
+                {
+                    var data = jObject["data"];
+                    if (data != null)
+                    {
+                        var axisData = new AxisData
+                        {
+                            X = data["x"]?.Value<float>() ?? 0,
+                            Y = data["y"]?.Value<float>() ?? 0,
+                            Z = data["z"]?.Value<float>() ?? 0,
+                            VelocityX = data["velocityX"]?.Value<float>() ?? 0,
+                            VelocityY = data["velocityY"]?.Value<float>() ?? 0,
+                            VelocityZ = data["velocityZ"]?.Value<float>() ?? 0,
+                            Timestamp = DateTime.Now
+                        };
+
+                        OnAxisDataReceived?.Invoke(axisData);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                OnError?.Invoke($"메시지 파싱 오류: {e.Message}");
+            }
         }
 
         public void SendAxisData(AxisData data)
@@ -160,6 +235,8 @@ namespace DigitalTwin.Dashboard.Services
             isRunning = false;
             isConnected = false;
 
+            readCancellation?.Cancel();
+            reader?.Close();
             writer?.Close();
             pipeServer?.Close();
 

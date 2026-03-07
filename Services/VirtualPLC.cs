@@ -109,6 +109,18 @@ namespace DigitalTwin.Dashboard.Services
             targetZ = 0f;
         }
 
+        public void SetPosition(float x, float y, float z)
+        {
+            // Unity에서 받은 위치를 직접 설정 (현재 위치와 타겟 위치 모두)
+            currentX = Clamp(x, -X_LIMIT, X_LIMIT);
+            currentY = Clamp(y, -Y_LIMIT, Y_LIMIT);
+            currentZ = Clamp(z, Z_MIN, Z_MAX);
+
+            targetX = currentX;
+            targetY = currentY;
+            targetZ = currentZ;
+        }
+
         public void EmergencyStop()
         {
             targetX = currentX;
