@@ -80,31 +80,6 @@
                                   Foreground="White" 
                                   Margin="0,0,0,20"/>
 
-                        <!-- 운전 모드 -->
-                        <GroupBox Header="운전 모드" 
-                                 Foreground="White" 
-                                 BorderBrush="#FF3E3E42"
-                                 Margin="0,0,0,15">
-                            <StackPanel Margin="5">
-                                <RadioButton x:Name="RadioManual"
-                                           Content="수동 모드" 
-                                           Foreground="White" 
-                                           IsChecked="True" 
-                                           Margin="0,8"
-                                           FontSize="14"/>
-                                <RadioButton x:Name="RadioAuto"
-                                           Content="자동 모드" 
-                                           Foreground="White" 
-                                           Margin="0,8"
-                                           FontSize="14"/>
-                                <RadioButton x:Name="RadioSimulation"
-                                           Content="시뮬레이션 모드" 
-                                           Foreground="White" 
-                                           Margin="0,8"
-                                           FontSize="14"/>
-                            </StackPanel>
-                        </GroupBox>
-
                         <!-- 제어 버튼 -->
                         <Button x:Name="BtnStart"
                                Content="▶ START"
@@ -213,7 +188,7 @@
                         </Button>
 
                         <Button x:Name="BtnReset"
-                               Content="⟲ RESET"
+                               Content="🔔 알람 클리어"
                                Foreground="White"
                                Height="40"
                                FontSize="14"
@@ -298,59 +273,239 @@
                         </Button>
 
                         <!-- 수동 제어 -->
-                        <GroupBox Header="수동 제어 (테스트)" 
-                                 Foreground="White" 
+                        <GroupBox Header="수동 제어 (테스트)"
+                                 Foreground="White"
                                  BorderBrush="#FF3E3E42"
                                  Margin="0,20,0,0">
                             <StackPanel Margin="5">
+                                <!-- 증분 단위 선택 -->
+                                <TextBlock Text="증분 단위" Foreground="White" FontSize="12" Margin="0,5,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <RadioButton x:Name="RadioStep01" Content="0.1" Foreground="White"
+                                                GroupName="StepSize" Grid.Column="0" FontSize="11"
+                                                Checked="StepSize_Changed"/>
+                                    <RadioButton x:Name="RadioStep05" Content="0.5" Foreground="White"
+                                                GroupName="StepSize" Grid.Column="1" FontSize="11"
+                                                Checked="StepSize_Changed"/>
+                                    <RadioButton x:Name="RadioStep1" Content="1.0" Foreground="White"
+                                                GroupName="StepSize" Grid.Column="2" IsChecked="True" FontSize="11"
+                                                Checked="StepSize_Changed"/>
+                                    <RadioButton x:Name="RadioStepCustom" Content="커스텀" Foreground="White"
+                                                GroupName="StepSize" Grid.Column="3" FontSize="11"
+                                                Checked="StepSize_Changed"/>
+                                </Grid>
+                                <TextBox x:Name="TxtCustomStep"
+                                        Text="5.0"
+                                        Background="#FF3E3E42"
+                                        Foreground="White"
+                                        BorderBrush="#FF5E5E62"
+                                        Height="25"
+                                        Margin="0,5,0,10"
+                                        Padding="5,3"
+                                        FontSize="12"
+                                        HorizontalContentAlignment="Center"
+                                        IsEnabled="False"/>
+
                                 <!-- X축 -->
-                                <TextBlock Text="X축 (mm)" Foreground="White" FontSize="12" Margin="0,8,0,5"/>
-                                <Slider x:Name="SliderX"
-                                       Minimum="-400"
-                                       Maximum="400"
-                                       Value="0"
-                                       TickFrequency="0.1"
-                                       IsSnapToTickEnabled="True"
-                                       ValueChanged="SliderX_ValueChanged"/>
-                                <TextBlock x:Name="TxtXValue" 
-                                          Text="0.0" 
-                                          Foreground="#FF00D9FF" 
-                                          FontSize="14"
-                                          FontWeight="Bold"
-                                          HorizontalAlignment="Center"/>
+                                <TextBlock Text="X축 (mm)" Foreground="White" FontSize="12" Margin="0,5,0,5"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="BtnXMinus" Content="−" Grid.Column="0"
+                                           Background="#FF3E3E42" Foreground="White"
+                                           FontSize="18" FontWeight="Bold" Height="35"
+                                           BorderThickness="0" Cursor="Hand"
+                                           Click="BtnXMinus_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF5E5E62"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock x:Name="TxtXValue" Grid.Column="1"
+                                              Text="0.0"
+                                              Foreground="#FF00D9FF"
+                                              FontSize="16"
+                                              FontWeight="Bold"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                    <Button x:Name="BtnXPlus" Content="+" Grid.Column="2"
+                                           Background="#FF3E3E42" Foreground="White"
+                                           FontSize="18" FontWeight="Bold" Height="35"
+                                           BorderThickness="0" Cursor="Hand"
+                                           Click="BtnXPlus_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF5E5E62"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
 
                                 <!-- Y축 -->
-                                <TextBlock Text="Y축 (mm)" Foreground="White" FontSize="12" Margin="0,15,0,5"/>
-                                <Slider x:Name="SliderY"
-                                       Minimum="-300"
-                                       Maximum="300"
-                                       Value="0"
-                                       TickFrequency="0.1"
-                                       IsSnapToTickEnabled="True"
-                                       ValueChanged="SliderY_ValueChanged"/>
-                                <TextBlock x:Name="TxtYValue" 
-                                          Text="0.0" 
-                                          Foreground="#FF00FF90" 
-                                          FontSize="14"
-                                          FontWeight="Bold"
-                                          HorizontalAlignment="Center"/>
+                                <TextBlock Text="Y축 (mm)" Foreground="White" FontSize="12" Margin="0,12,0,5"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="BtnYMinus" Content="−" Grid.Column="0"
+                                           Background="#FF3E3E42" Foreground="White"
+                                           FontSize="18" FontWeight="Bold" Height="35"
+                                           BorderThickness="0" Cursor="Hand"
+                                           Click="BtnYMinus_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF5E5E62"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock x:Name="TxtYValue" Grid.Column="1"
+                                              Text="0.0"
+                                              Foreground="#FF00FF90"
+                                              FontSize="16"
+                                              FontWeight="Bold"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                    <Button x:Name="BtnYPlus" Content="+" Grid.Column="2"
+                                           Background="#FF3E3E42" Foreground="White"
+                                           FontSize="18" FontWeight="Bold" Height="35"
+                                           BorderThickness="0" Cursor="Hand"
+                                           Click="BtnYPlus_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF5E5E62"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
 
                                 <!-- Z축 -->
-                                <TextBlock Text="Z축 (mm)" Foreground="White" FontSize="12" Margin="0,15,0,5"/>
-                                <Slider x:Name="SliderZ"
-                                       Minimum="-60"
-                                       Maximum="0"
-                                       Value="0"
-                                       TickFrequency="0.1"
-                                       IsSnapToTickEnabled="True"
-                                       ValueChanged="SliderZ_ValueChanged"/>
-                                <TextBlock x:Name="TxtZValue" 
-                                          Text="0.0" 
-                                          Foreground="#FFFF9900" 
-                                          FontSize="14"
-                                          FontWeight="Bold"
-                                          HorizontalAlignment="Center"
-                                          Margin="0,0,0,10"/>
+                                <TextBlock Text="Z축 (mm)" Foreground="White" FontSize="12" Margin="0,12,0,5"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="BtnZMinus" Content="−" Grid.Column="0"
+                                           Background="#FF3E3E42" Foreground="White"
+                                           FontSize="18" FontWeight="Bold" Height="35"
+                                           BorderThickness="0" Cursor="Hand"
+                                           Click="BtnZMinus_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF5E5E62"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock x:Name="TxtZValue" Grid.Column="1"
+                                              Text="0.0"
+                                              Foreground="#FFFF9900"
+                                              FontSize="16"
+                                              FontWeight="Bold"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                    <Button x:Name="BtnZPlus" Content="+" Grid.Column="2"
+                                           Background="#FF3E3E42" Foreground="White"
+                                           FontSize="18" FontWeight="Bold" Height="35"
+                                           BorderThickness="0" Cursor="Hand"
+                                           Click="BtnZPlus_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FF5E5E62"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>
@@ -443,7 +598,8 @@
                                      SelectionMode="Single"
                                      AlternatingRowBackground="#FF2D2D30"
                                      RowBackground="#FF252526"
-                                     Margin="10">
+                                     Margin="10"
+                                     MouseDoubleClick="AlarmDataGrid_MouseDoubleClick">
                                 <DataGrid.ColumnHeaderStyle>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="Background" Value="#FF2D2D30"/>
@@ -457,10 +613,11 @@
 
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="No" Binding="{Binding Id}" Width="50"/>
-                                    <DataGridTextColumn Header="시간" Binding="{Binding TimeString}" Width="90"/>
+                                    <DataGridTextColumn Header="시간" Binding="{Binding TimeRangeString}" Width="140"/>
                                     <DataGridTextColumn Header="레벨" Binding="{Binding LevelIcon}" Width="60"/>
                                     <DataGridTextColumn Header="위치" Binding="{Binding Location}" Width="100"/>
                                     <DataGridTextColumn Header="메시지" Binding="{Binding Message}" Width="*"/>
+                                    <DataGridTextColumn Header="횟수" Binding="{Binding CountString}" Width="60"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>
@@ -594,42 +751,88 @@
                         </GroupBox>
 
                         <!-- 통계 -->
-                        <GroupBox Header="금일 통계" 
-                                 Foreground="White" 
-                                 BorderBrush="#FF3E3E42">
+                        <GroupBox Header="금일 통계"
+                                 Foreground="White"
+                                 BorderBrush="#FF3E3E42"
+                                 Margin="0,0,0,15">
                             <StackPanel Margin="10">
                                 <StackPanel Orientation="Horizontal" Margin="0,5">
-                                    <TextBlock Text="사이클 횟수: " 
-                                              Foreground="#FFAAAAAA" 
+                                    <TextBlock Text="사이클 횟수: "
+                                              Foreground="#FFAAAAAA"
                                               FontSize="14"/>
                                     <TextBlock x:Name="TxtCycleCount"
-                                              Text="0" 
-                                              Foreground="White" 
+                                              Text="0"
+                                              Foreground="White"
                                               FontSize="14"
                                               FontWeight="Bold"/>
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" Margin="0,5">
-                                    <TextBlock Text="평균 시간: " 
-                                              Foreground="#FFAAAAAA" 
+                                    <TextBlock Text="평균 시간: "
+                                              Foreground="#FFAAAAAA"
                                               FontSize="14"/>
                                     <TextBlock x:Name="TxtAvgTime"
-                                              Text="0.0s" 
-                                              Foreground="White" 
+                                              Text="0.0s"
+                                              Foreground="White"
                                               FontSize="14"
                                               FontWeight="Bold"/>
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" Margin="0,5">
-                                    <TextBlock Text="알람: " 
-                                              Foreground="#FFAAAAAA" 
+                                    <TextBlock Text="알람: "
+                                              Foreground="#FFAAAAAA"
                                               FontSize="14"/>
                                     <TextBlock x:Name="TxtAlarmCount"
-                                              Text="0건" 
-                                              Foreground="#FFFFCC00" 
+                                              Text="0건"
+                                              Foreground="#FFFFCC00"
                                               FontSize="14"
                                               FontWeight="Bold"/>
                                 </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- 알람 설정 -->
+                        <GroupBox Header="⚙️ 알람 설정"
+                                 Foreground="White"
+                                 BorderBrush="#FF3E3E42">
+                            <StackPanel Margin="10">
+                                <TextBlock Text="체크 간격 (초)"
+                                          Foreground="#FFAAAAAA"
+                                          FontSize="12"
+                                          Margin="0,0,0,5"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Slider x:Name="SliderCheckInterval"
+                                           Grid.Column="0"
+                                           Minimum="1"
+                                           Maximum="60"
+                                           Value="30"
+                                           TickFrequency="1"
+                                           IsSnapToTickEnabled="True"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,10,0"
+                                           ValueChanged="SliderCheckInterval_ValueChanged"/>
+
+                                    <TextBlock x:Name="TxtCheckInterval"
+                                              Grid.Column="1"
+                                              Text="30s"
+                                              Foreground="#FF00D9FF"
+                                              FontSize="14"
+                                              FontWeight="Bold"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <TextBlock Text="1초 = 즉시, 30초 = 표준, 60초 = 느림"
+                                          Foreground="#FF666666"
+                                          FontSize="10"
+                                          Margin="0,5,0,0"
+                                          TextWrapping="Wrap"/>
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>
