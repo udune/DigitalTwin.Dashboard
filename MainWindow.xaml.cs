@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -63,9 +64,16 @@ namespace DigitalTwin.Dashboard
         private void InitializeData()
         {
             _alarmList = new ObservableCollection<AlarmData>();
+            _alarmList.CollectionChanged += AlarmList_CollectionChanged;
             AlarmDataGrid.ItemsSource = _alarmList;
 
             _systemStatus = new SystemStatus();
+        }
+
+        private void AlarmList_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            // 알람이 있을 때만 내보내기 버튼 활성화
+            BtnExportAlarms.IsEnabled = _alarmList.Count > 0;
         }
 
         private void InitializeServices()
@@ -281,6 +289,78 @@ namespace DigitalTwin.Dashboard
             // 원점 복귀 플래그 설정
             _isHoming = true;
             UpdateStatus("원점 복귀 중...", Colors.Yellow);
+        }
+
+        private void BtnExportAlarms_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // exports 디렉토리 생성
+                string exportDir = "exports";
+                if (!Directory.Exists(exportDir))
+                {
+                    Directory.CreateDirectory(exportDir);
+                }
+
+                // 파일명 생성 (타임스탬프 포함)
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string fileName = $"alarms_{timestamp}.csv";
+                string filePath = Path.Combine(exportDir, fileName);
+
+                // CSV 파일 작성
+                using (var writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8))
+                {
+                    // CSV 헤더 작성
+                    writer.WriteLine("ID,발생시간,레벨,위치,메시지,발생횟수,최초발생,최근발생");
+
+                    // 알람 데이터 작성
+                    foreach (var alarm in _alarmList)
+                    {
+                        // CSV 이스케이프 처리 (쉼표, 따옴표 포함된 필드는 따옴표로 감싸기)
+                        string message = EscapeCsvField(alarm.Message);
+
+                        writer.WriteLine($"{alarm.Id}," +
+                                       $"{alarm.Time:yyyy-MM-dd HH:mm:ss}," +
+                                       $"{alarm.Level}," +
+                                       $"{alarm.Location}," +
+                                       $"{message}," +
+                                       $"{alarm.Count}," +
+                                       $"{alarm.FirstTime:yyyy-MM-dd HH:mm:ss}," +
+                                       $"{alarm.LastTime:yyyy-MM-dd HH:mm:ss}");
+                    }
+                }
+
+                // 성공 메시지 표시
+                UpdateStatus($"알람 {_alarmList.Count}건 내보내기 완료", Colors.LimeGreen);
+                MessageBox.Show($"알람 기록이 저장되었습니다.\n\n" +
+                              $"파일: {filePath}\n" +
+                              $"알람 수: {_alarmList.Count}건",
+                              "내보내기 완료",
+                              MessageBoxButton.OK,
+                              MessageBoxImage.Information);
+
+                // 파일 탐색기로 폴더 열기
+                System.Diagnostics.Process.Start("explorer.exe", Path.GetFullPath(exportDir));
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"내보내기 실패: {ex.Message}", Colors.Red);
+                MessageBox.Show($"알람 내보내기 오류:\n{ex.Message}",
+                              "오류",
+                              MessageBoxButton.OK,
+                              MessageBoxImage.Error);
+            }
+        }
+
+        private string EscapeCsvField(string field)
+        {
+            // CSV 필드에 쉼표, 따옴표, 줄바꿈이 있으면 따옴표로 감싸기
+            if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
+            {
+                // 따옴표를 두 개로 이스케이프
+                return $"\"{field.Replace("\"", "\"\"")}\"";
+            }
+            return field;
         }
 
         #endregion
