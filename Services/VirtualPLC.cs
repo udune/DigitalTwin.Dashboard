@@ -8,6 +8,10 @@ namespace DigitalTwin.Dashboard.Services
         private float currentY = 0f;
         private float currentZ = 0f;
 
+        private float previousX = 0f;
+        private float previousY = 0f;
+        private float previousZ = 0f;
+
         private float targetX = 0f;
         private float targetY = 0f;
         private float targetZ = 0f;
@@ -22,10 +26,11 @@ namespace DigitalTwin.Dashboard.Services
         public event Action<AxisData> OnDataUpdated;
         public event Action<string> OnError;
 
-        private const float X_LIMIT = 400f;
-        private const float Y_LIMIT = 300f;
-        private const float Z_MIN = -60f;
-        private const float Z_MAX = 0f;
+        // 물리적 이동 한계 (알람은 ErrorDetector에서 처리)
+        private const float X_LIMIT = 500f;
+        private const float Y_LIMIT = 500f;
+        private const float Z_MIN = -100f;
+        private const float Z_MAX = 50f;
 
         public bool IsRunning => isRunning;
 
@@ -54,6 +59,11 @@ namespace DigitalTwin.Dashboard.Services
             {
                 try
                 {
+                    // 이전 위치 저장
+                    previousX = currentX;
+                    previousY = currentY;
+                    previousZ = currentZ;
+
                     // 위치 업데이트 (부드럽게 이동)
                     float deltaTime = 1f / UpdateRate;
 
@@ -61,10 +71,10 @@ namespace DigitalTwin.Dashboard.Services
                     currentY = MoveTowards(currentY, targetY, MaxSpeed * deltaTime);
                     currentZ = MoveTowards(currentZ, targetZ, MaxSpeed * deltaTime);
 
-                    // 속도 계산
-                    float velX = (targetX - currentX) * UpdateRate / 10f;
-                    float velY = (targetY - currentY) * UpdateRate / 10f;
-                    float velZ = (targetZ - currentZ) * UpdateRate / 10f;
+                    // 속도 계산 (실제 이동한 거리 / 시간)
+                    float velX = (currentX - previousX) / deltaTime;
+                    float velY = (currentY - previousY) / deltaTime;
+                    float velZ = (currentZ - previousZ) / deltaTime;
 
                     // 데이터 전송
                     OnDataUpdated?.Invoke(new AxisData
