@@ -369,94 +369,72 @@ namespace DigitalTwin.Dashboard
 
         private void StepSize_Changed(object sender, RoutedEventArgs e)
         {
-            if (RadioStep01?.IsChecked == true)
+            // 프리셋 스텝 사이즈 매핑
+            _currentStepSize = (RadioStep01?.IsChecked, RadioStep05?.IsChecked, RadioStep1?.IsChecked) switch
             {
-                _currentStepSize = 0.1f;
-                if (TxtCustomStep != null) TxtCustomStep.IsEnabled = false;
-            }
-            else if (RadioStep05?.IsChecked == true)
+                (true, _, _) => 0.1f,
+                (_, true, _) => 0.5f,
+                (_, _, true) => 1.0f,
+                _ => TryParseCustomStep()
+            };
+
+            // 커스텀 입력 필드 활성화 여부
+            if (TxtCustomStep != null)
+                TxtCustomStep.IsEnabled = RadioStepCustom?.IsChecked == true;
+        }
+
+        private float TryParseCustomStep()
+        {
+            if (TxtCustomStep != null &&
+                float.TryParse(TxtCustomStep.Text, out float step) &&
+                step is > 0 and <= 5)
             {
-                _currentStepSize = 0.5f;
-                if (TxtCustomStep != null) TxtCustomStep.IsEnabled = false;
+                return step;
             }
-            else if (RadioStep1?.IsChecked == true)
-            {
-                _currentStepSize = 1.0f;
-                if (TxtCustomStep != null) TxtCustomStep.IsEnabled = false;
-            }
-            else if (RadioStepCustom?.IsChecked == true)
-            {
-                if (TxtCustomStep != null)
-                {
-                    TxtCustomStep.IsEnabled = true;
-                    if (float.TryParse(TxtCustomStep.Text, out float customStep) && customStep > 0 && customStep <= 5)
-                    {
-                        _currentStepSize = customStep;
-                    }
-                }
-            }
+            return 1.0f;
         }
 
         private float GetCurrentStepSize()
         {
-            if (RadioStepCustom?.IsChecked == true && TxtCustomStep != null)
-            {
-                if (float.TryParse(TxtCustomStep.Text, out float customStep) && customStep > 0 && customStep <= 5)
-                {
-                    return customStep;
-                }
-                return 1.0f;
-            }
+            // 커스텀 모드일 때는 실시간으로 텍스트 박스 값 파싱
+            if (RadioStepCustom?.IsChecked == true)
+                return TryParseCustomStep();
+
             return _currentStepSize;
         }
 
-        private void BtnXMinus_Click(object sender, RoutedEventArgs e)
+        private void MoveAxis(char axis, int direction)
         {
             if (_virtualPLC == null) return;
-            _targetX -= GetCurrentStepSize();
-            _virtualPLC.MoveX(_targetX);
-            TxtXValue.Text = $"{_targetX:F1}";
+
+            float step = GetCurrentStepSize() * direction;
+
+            switch (axis)
+            {
+                case 'X':
+                    _targetX += step;
+                    _virtualPLC.MoveX(_targetX);
+                    TxtXValue.Text = $"{_targetX:F1}";
+                    break;
+                case 'Y':
+                    _targetY += step;
+                    _virtualPLC.MoveY(_targetY);
+                    TxtYValue.Text = $"{_targetY:F1}";
+                    break;
+                case 'Z':
+                    _targetZ += step;
+                    _virtualPLC.MoveZ(_targetZ);
+                    TxtZValue.Text = $"{_targetZ:F1}";
+                    break;
+            }
         }
 
-        private void BtnXPlus_Click(object sender, RoutedEventArgs e)
-        {
-            if (_virtualPLC == null) return;
-            _targetX += GetCurrentStepSize();
-            _virtualPLC.MoveX(_targetX);
-            TxtXValue.Text = $"{_targetX:F1}";
-        }
-
-        private void BtnYMinus_Click(object sender, RoutedEventArgs e)
-        {
-            if (_virtualPLC == null) return;
-            _targetY -= GetCurrentStepSize();
-            _virtualPLC.MoveY(_targetY);
-            TxtYValue.Text = $"{_targetY:F1}";
-        }
-
-        private void BtnYPlus_Click(object sender, RoutedEventArgs e)
-        {
-            if (_virtualPLC == null) return;
-            _targetY += GetCurrentStepSize();
-            _virtualPLC.MoveY(_targetY);
-            TxtYValue.Text = $"{_targetY:F1}";
-        }
-
-        private void BtnZMinus_Click(object sender, RoutedEventArgs e)
-        {
-            if (_virtualPLC == null) return;
-            _targetZ -= GetCurrentStepSize();
-            _virtualPLC.MoveZ(_targetZ);
-            TxtZValue.Text = $"{_targetZ:F1}";
-        }
-
-        private void BtnZPlus_Click(object sender, RoutedEventArgs e)
-        {
-            if (_virtualPLC == null) return;
-            _targetZ += GetCurrentStepSize();
-            _virtualPLC.MoveZ(_targetZ);
-            TxtZValue.Text = $"{_targetZ:F1}";
-        }
+        private void BtnXMinus_Click(object sender, RoutedEventArgs e) => MoveAxis('X', -1);
+        private void BtnXPlus_Click(object sender, RoutedEventArgs e) => MoveAxis('X', +1);
+        private void BtnYMinus_Click(object sender, RoutedEventArgs e) => MoveAxis('Y', -1);
+        private void BtnYPlus_Click(object sender, RoutedEventArgs e) => MoveAxis('Y', +1);
+        private void BtnZMinus_Click(object sender, RoutedEventArgs e) => MoveAxis('Z', -1);
+        private void BtnZPlus_Click(object sender, RoutedEventArgs e) => MoveAxis('Z', +1);
 
         #endregion
 

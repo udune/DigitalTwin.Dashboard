@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace DigitalTwin.Dashboard.Models
+﻿namespace DigitalTwin.Dashboard.Models
 {
     internal class AlarmData
     {

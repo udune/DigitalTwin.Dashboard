@@ -1,11 +1,8 @@
 ﻿using DigitalTwin.Dashboard.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
-using System.Text;
 
 namespace DigitalTwin.Dashboard.Services
 {
@@ -142,31 +139,13 @@ namespace DigitalTwin.Dashboard.Services
             }
         }
 
-        public void SendAxisData(AxisData data)
+        private void SendMessage(object message)
         {
-            if (!isRunning || writer == null)
-            {
-                return;
-            }
+            if (!isRunning || writer == null) return;
 
             try
             {
-                var message = new
-                {
-                    type = "axis_data",
-                    data = new
-                    {
-                        x = data.X,
-                        y = data.Y,
-                        z = data.Z,
-                        velocityX = data.VelocityX,
-                        velocityY = data.VelocityY,
-                        velocityZ = data.VelocityZ,
-                        timestamp = data.Timestamp.ToString("o")
-                    }
-                };
-                var json = JsonConvert.SerializeObject(message);
-                writer.WriteLine(json);
+                writer.WriteLine(JsonConvert.SerializeObject(message));
             }
             catch (IOException)
             {
@@ -175,60 +154,35 @@ namespace DigitalTwin.Dashboard.Services
             }
             catch (Exception e)
             {
-                OnError?.Invoke($"SendAxis 전송 오류 {e.Message}");
+                OnError?.Invoke($"전송 오류: {e.Message}");
             }
         }
 
-        public void SendError(AlarmData alarm)
+        public void SendAxisData(AxisData data) => SendMessage(new
         {
-            if (!isRunning || writer == null)
+            type = "axis_data",
+            data = new
             {
-                return;
+                x = data.X,
+                y = data.Y,
+                z = data.Z,
+                velocityX = data.VelocityX,
+                velocityY = data.VelocityY,
+                velocityZ = data.VelocityZ,
+                timestamp = data.Timestamp.ToString("o")
             }
+        });
 
-            try
-            {
-                var message = new
-                {
-                    type = "error",
-                    location = alarm.Location,
-                    level = alarm.Level,
-                    message = alarm.Message,
-                    timestamp = alarm.Time.ToString("o")
-                };
-
-                var json = JsonConvert.SerializeObject(message);
-                writer.WriteLine(json);
-            }
-            catch (IOException)
-            {
-                isConnected = false;
-                OnDisconnected?.Invoke();
-            }
-            catch (Exception e)
-            {
-                OnError?.Invoke($"Send 전송 오류 {e.Message}");
-            }
-        }
-
-        public void SendClearError()
+        public void SendError(AlarmData alarm) => SendMessage(new
         {
-            if (!isConnected || writer == null)
-            {
-                return;
-            }
+            type = "error",
+            location = alarm.Location,
+            level = alarm.Level,
+            message = alarm.Message,
+            timestamp = alarm.Time.ToString("o")
+        });
 
-            try
-            {
-                var message = new { type = "clear_error" };
-                string json = JsonConvert.SerializeObject(message);
-                writer.WriteLine(json);
-            }
-            catch (Exception e)
-            {
-                OnError?.Invoke($"SendClear 전송 오류 {e.Message}");
-            }
-        }
+        public void SendClearError() => SendMessage(new { type = "clear_error" });
 
         public void Stop()
         {

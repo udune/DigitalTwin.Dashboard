@@ -97,20 +97,11 @@ namespace DigitalTwin.Dashboard.Services
             }
         }
 
-        public void MoveX(float position)
-        {
-            targetX = Clamp(position, -X_LIMIT, X_LIMIT);
-        }
+        public void MoveX(float position) => targetX = Math.Clamp(position, -X_LIMIT, X_LIMIT);
 
-        public void MoveY(float position)
-        {
-            targetY = Clamp(position, -Y_LIMIT, Y_LIMIT);
-        }
+        public void MoveY(float position) => targetY = Math.Clamp(position, -Y_LIMIT, Y_LIMIT);
 
-        public void MoveZ(float position)
-        {
-            targetZ = Clamp(position, Z_MIN, Z_MAX);
-        }
+        public void MoveZ(float position) => targetZ = Math.Clamp(position, Z_MIN, Z_MAX);
 
         public void HomeAll()
         {
@@ -122,9 +113,9 @@ namespace DigitalTwin.Dashboard.Services
         public void SetPosition(float x, float y, float z)
         {
             // Unity에서 받은 위치를 직접 설정 (현재 위치와 타겟 위치 모두)
-            currentX = Clamp(x, -X_LIMIT, X_LIMIT);
-            currentY = Clamp(y, -Y_LIMIT, Y_LIMIT);
-            currentZ = Clamp(z, Z_MIN, Z_MAX);
+            currentX = Math.Clamp(x, -X_LIMIT, X_LIMIT);
+            currentY = Math.Clamp(y, -Y_LIMIT, Y_LIMIT);
+            currentZ = Math.Clamp(z, Z_MIN, Z_MAX);
 
             targetX = currentX;
             targetY = currentY;
@@ -153,17 +144,5 @@ namespace DigitalTwin.Dashboard.Services
             return current + Math.Sign(target - current) * maxDelta;
         }
 
-        private float Clamp(float value, float min, float max)
-        {
-            if (value < min)
-            {
-                return min;
-            }
-            if (value > max)
-            {
-                return max;
-            }
-            return value;
-        }
     }
 }
