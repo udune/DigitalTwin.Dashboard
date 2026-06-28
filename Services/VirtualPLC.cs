@@ -52,7 +52,7 @@ namespace DigitalTwin.Dashboard.Services
             cts?.Cancel();
         }
 
-        private void UpdateLoop(CancellationToken token)
+        private async Task UpdateLoop(CancellationToken token)
         {
             while (!token.IsCancellationRequested)
             {
@@ -95,7 +95,11 @@ namespace DigitalTwin.Dashboard.Services
                         Timestamp = DateTime.Now
                     });
 
-                    Thread.Sleep(1000 / UpdateRate);
+                    await Task.Delay(1000 / UpdateRate, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
                 }
                 catch (Exception e)
                 {
