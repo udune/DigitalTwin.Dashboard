@@ -1,21 +1,9 @@
-﻿using DigitalTwin.Dashboard.Models;
+using DigitalTwin.Dashboard.Models;
 
 namespace DigitalTwin.Dashboard.Services
 {
     internal class VirtualPLC
     {
-        private float currentX = 0f;
-        private float currentY = 0f;
-        private float currentZ = 0f;
-
-        private float previousX = 0f;
-        private float previousY = 0f;
-        private float previousZ = 0f;
-
-        private float targetX = 0f;
-        private float targetY = 0f;
-        private float targetZ = 0f;
-
         private const float MaxSpeed = 100.0f;
         private const float MaxAccel = 500.0f;
         private const int UpdateRate = 100;
@@ -26,13 +14,22 @@ namespace DigitalTwin.Dashboard.Services
         public event Action<AxisData> OnDataUpdated;
         public event Action<string> OnError;
 
-        // 물리적 이동 한계 (알람은 ErrorDetector에서 처리)
+        // 물리적 이동 한계 = travel clamp (알람 경계와는 별개, P1). 여기서 유지.
         private const float X_LIMIT = 500f;
         private const float Y_LIMIT = 500f;
         private const float Z_MIN = -100f;
         private const float Z_MAX = 50f;
 
+        private readonly DeviceTable _deviceTable;
+        private readonly ErrorDetector _errorDetector;
+
         public bool IsRunning => isRunning;
+
+        public VirtualPLC(DeviceTable deviceTable, ErrorDetector errorDetector)
+        {
+            _deviceTable = deviceTable;
+            _errorDetector = errorDetector;
+        }
 
         public async Task Start()
         {
@@ -59,24 +56,32 @@ namespace DigitalTwin.Dashboard.Services
             {
                 try
                 {
-                    // 이전 위치 저장
-                    previousX = currentX;
-                    previousY = currentY;
-                    previousZ = currentZ;
+                    // ① DeviceTable에서 target / 이전 current 읽기
+                    var snap = _deviceTable.Snapshot();
 
-                    // 위치 업데이트 (부드럽게 이동)
                     float deltaTime = 1f / UpdateRate;
 
-                    currentX = MoveTowards(currentX, targetX, MaxSpeed * deltaTime);
-                    currentY = MoveTowards(currentY, targetY, MaxSpeed * deltaTime);
-                    currentZ = MoveTowards(currentZ, targetZ, MaxSpeed * deltaTime);
+                    // ② 기존 보간 로직으로 새 current 계산 (±500 / Z −100~50 travel clamp는 여기 유지 = P1)
+                    float targetX = Math.Clamp(snap.TargetX, -X_LIMIT, X_LIMIT);
+                    float targetY = Math.Clamp(snap.TargetY, -Y_LIMIT, Y_LIMIT);
+                    float targetZ = Math.Clamp(snap.TargetZ, Z_MIN, Z_MAX);
+
+                    float currentX = MoveTowards(snap.CurrentX, targetX, MaxSpeed * deltaTime);
+                    float currentY = MoveTowards(snap.CurrentY, targetY, MaxSpeed * deltaTime);
+                    float currentZ = MoveTowards(snap.CurrentZ, targetZ, MaxSpeed * deltaTime);
 
                     // 속도 계산 (실제 이동한 거리 / 시간)
-                    float velX = (currentX - previousX) / deltaTime;
-                    float velY = (currentY - previousY) / deltaTime;
-                    float velZ = (currentZ - previousZ) / deltaTime;
+                    float velX = (currentX - snap.CurrentX) / deltaTime;
+                    float velY = (currentY - snap.CurrentY) / deltaTime;
+                    float velZ = (currentZ - snap.CurrentZ) / deltaTime;
 
-                    // 데이터 전송
+                    // ③ DeviceTable에 current/velocity 기록
+                    _deviceTable.SetCurrentAndVelocity(currentX, currentY, currentZ, velX, velY, velZ);
+
+                    // 경계 판정 (current 기록 직후, 100Hz 결정적 판정, UI 스레드 밖)
+                    _errorDetector.Evaluate();
+
+                    // Unity 송신 트리거 (cadence 기존 그대로 유지 = 100Hz·백그라운드, T6)
                     OnDataUpdated?.Invoke(new AxisData
                     {
                         X = currentX,
@@ -97,43 +102,6 @@ namespace DigitalTwin.Dashboard.Services
             }
         }
 
-        public void MoveX(float position) => targetX = Math.Clamp(position, -X_LIMIT, X_LIMIT);
-
-        public void MoveY(float position) => targetY = Math.Clamp(position, -Y_LIMIT, Y_LIMIT);
-
-        public void MoveZ(float position) => targetZ = Math.Clamp(position, Z_MIN, Z_MAX);
-
-        public void HomeAll()
-        {
-            targetX = 0f;
-            targetY = 0f;
-            targetZ = 0f;
-        }
-
-        public void SetPosition(float x, float y, float z)
-        {
-            // Unity에서 받은 위치를 직접 설정 (현재 위치와 타겟 위치 모두)
-            currentX = Math.Clamp(x, -X_LIMIT, X_LIMIT);
-            currentY = Math.Clamp(y, -Y_LIMIT, Y_LIMIT);
-            currentZ = Math.Clamp(z, Z_MIN, Z_MAX);
-
-            targetX = currentX;
-            targetY = currentY;
-            targetZ = currentZ;
-        }
-
-        public void EmergencyStop()
-        {
-            targetX = currentX;
-            targetY = currentY;
-            targetZ = currentZ;
-        }
-
-        public (float X, float Y, float Z) GetCurrentPosition()
-        {
-            return (currentX, currentY, currentZ);
-        }
-
         private float MoveTowards(float current, float target, float maxDelta)
         {
             if (Math.Abs(target - current) <= maxDelta)
@@ -143,6 +111,5 @@ namespace DigitalTwin.Dashboard.Services
 
             return current + Math.Sign(target - current) * maxDelta;
         }
-
     }
 }

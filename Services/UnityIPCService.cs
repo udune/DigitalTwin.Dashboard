@@ -20,9 +20,15 @@ namespace DigitalTwin.Dashboard.Services
         public event Action OnConnected;
         public event Action OnDisconnected;
         public event Action<string> OnError;
-        public event Action<AxisData> OnAxisDataReceived;
 
         private const string PipeName = "DigitalTwinPipe";
+
+        private readonly DeviceTable _deviceTable;
+
+        public UnityIPCService(DeviceTable deviceTable)
+        {
+            _deviceTable = deviceTable;
+        }
 
         public async Task Start()
         {
@@ -118,18 +124,13 @@ namespace DigitalTwin.Dashboard.Services
                     var data = jObject["data"];
                     if (data != null)
                     {
-                        var axisData = new AxisData
-                        {
-                            X = data["x"]?.Value<float>() ?? 0,
-                            Y = data["y"]?.Value<float>() ?? 0,
-                            Z = data["z"]?.Value<float>() ?? 0,
-                            VelocityX = data["velocityX"]?.Value<float>() ?? 0,
-                            VelocityY = data["velocityY"]?.Value<float>() ?? 0,
-                            VelocityZ = data["velocityZ"]?.Value<float>() ?? 0,
-                            Timestamp = DateTime.Now
-                        };
+                        // 수신부는 어댑터로 강등: DeviceTable에 target 직접 기록(P4, last-writer-wins).
+                        // Unity가 보내는 velocity는 항상 0이므로 사용하지 않는다(WPF가 자체 산출).
+                        float x = data["x"]?.Value<float>() ?? 0;
+                        float y = data["y"]?.Value<float>() ?? 0;
+                        float z = data["z"]?.Value<float>() ?? 0;
 
-                        OnAxisDataReceived?.Invoke(axisData);
+                        _deviceTable.SetTarget(x, y, z);
                     }
                 }
             }

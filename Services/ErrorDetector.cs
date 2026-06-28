@@ -1,15 +1,11 @@
-﻿using DigitalTwin.Dashboard.Models;
+using DigitalTwin.Dashboard.Models;
 
 namespace DigitalTwin.Dashboard.Services
 {
     internal class ErrorDetector
     {
-        // Unity 안전 영역에 맞춰 제한
-        private const float X_LIMIT = 125.9f;
-        private const float Y_LIMIT = 125.9f;
-        private const float Z_MIN = -60f;
-        private const float Z_MAX = 0f;
-        private const float Z_SAFE_HEIGHT = -30f;  // Z축 범위: -60~0mm, -30보다 아래면 위험
+        // 알람 경계(X/Y/Z 한계)는 DeviceTable의 Limits에서 읽는다(P2). 하드코딩 제거.
+        private const float Z_SAFE_HEIGHT = -30f;  // -30보다 아래에서 XY 이동 시 경고
         private const float MAX_VELOCITY = 150f;
 
         // 반복 알람 간격 설정 (초 단위) - 같은 에러의 재발생 간격
@@ -18,7 +14,14 @@ namespace DigitalTwin.Dashboard.Services
         // 각 에러 종류별 마지막 발생 시각 추적
         private Dictionary<string, DateTime> _lastAlarmTimes = new Dictionary<string, DateTime>();
 
+        private readonly DeviceTable _deviceTable;
+
         public event Action<AlarmData> OnErrorDetected;
+
+        public ErrorDetector(DeviceTable deviceTable)
+        {
+            _deviceTable = deviceTable;
+        }
 
         // 반복 알람 간격 설정 (초 단위)
         public void SetCheckInterval(double seconds)
@@ -28,52 +31,72 @@ namespace DigitalTwin.Dashboard.Services
 
         public double GetCheckInterval() => _repeatIntervalSeconds;
 
-        public void CheckAxisData(AxisData data)
+        // DeviceTable의 current를 Limits와 비교해 알람을 발생시키고 에러 플래그를 기록한다.
+        // VirtualPLC 100Hz 루프가 current 기록 직후 호출(결정적 판정, UI 스레드 밖).
+        public void Evaluate()
         {
+            var s = _deviceTable.Snapshot();
+
+            // 위치 한계 위반 = 축 에러 플래그
+            bool xError = s.CurrentX < s.XMin || s.CurrentX > s.XMax;
+            bool yError = s.CurrentY < s.YMin || s.CurrentY > s.YMax;
+            bool zError = s.CurrentZ < s.ZMin || s.CurrentZ > s.ZMax;
+
             // X축 리미트 체크
-            if (Math.Abs(data.X) > X_LIMIT)
+            if (s.CurrentX > s.XMax)
             {
-                RaiseError("Error", "X_AXIS", $"X축 리미트 초과: {data.X:F1}mm (제한: ±{X_LIMIT}mm)");
+                RaiseError("Error", "X_AXIS", $"X축 리미트 초과: {s.CurrentX:F1}mm (제한: {s.XMax:F1}mm)");
+            }
+            if (s.CurrentX < s.XMin)
+            {
+                RaiseError("Error", "X_AXIS", $"X축 리미트 초과: {s.CurrentX:F1}mm (제한: {s.XMin:F1}mm)");
             }
 
             // Y축 리미트 체크
-            if (Math.Abs(data.Y) > Y_LIMIT)
+            if (s.CurrentY > s.YMax)
             {
-                RaiseError("Error", "Y_AXIS", $"Y축 리미트 초과: {data.Y:F1}mm (제한: ±{Y_LIMIT}mm)");
+                RaiseError("Error", "Y_AXIS", $"Y축 리미트 초과: {s.CurrentY:F1}mm (제한: {s.YMax:F1}mm)");
+            }
+            if (s.CurrentY < s.YMin)
+            {
+                RaiseError("Error", "Y_AXIS", $"Y축 리미트 초과: {s.CurrentY:F1}mm (제한: {s.YMin:F1}mm)");
             }
 
-            // Z축 범위 체크 (0 초과 또는 -60 미만)
-            if (data.Z > Z_MAX)
+            // Z축 범위 체크 (상한 초과 또는 하한 미만)
+            if (s.CurrentZ > s.ZMax)
             {
-                RaiseError("Error", "Z_AXIS", $"Z축 상한 초과: {data.Z:F1}mm (제한: {Z_MAX}mm 이하)");
+                RaiseError("Error", "Z_AXIS", $"Z축 상한 초과: {s.CurrentZ:F1}mm (제한: {s.ZMax:F1}mm 이하)");
             }
-            if (data.Z < Z_MIN)
+            if (s.CurrentZ < s.ZMin)
             {
-                RaiseError("Error", "Z_AXIS", $"Z축 하한 초과: {data.Z:F1}mm (제한: {Z_MIN}mm 이상)");
+                RaiseError("Error", "Z_AXIS", $"Z축 하한 초과: {s.CurrentZ:F1}mm (제한: {s.ZMin:F1}mm 이상)");
             }
 
             // Z축 안전 높이 체크
-            if (data.Z < Z_SAFE_HEIGHT && (Math.Abs(data.VelocityX) > 0.1f || Math.Abs(data.VelocityY) > 0.1f))
+            if (s.CurrentZ < Z_SAFE_HEIGHT && (Math.Abs(s.VelocityX) > 0.1f || Math.Abs(s.VelocityY) > 0.1f))
             {
-                RaiseError("Warning", "Z_AXIS", $"Z축 안전 높이 미달: {data.Z:F1}mm (XY 이동 중)");
+                RaiseError("Warning", "Z_AXIS", $"Z축 안전 높이 미달: {s.CurrentZ:F1}mm (XY 이동 중)");
             }
 
             // 과속 체크
-            if (Math.Abs(data.VelocityX) > MAX_VELOCITY)
+            if (Math.Abs(s.VelocityX) > MAX_VELOCITY)
             {
                 RaiseError("Warning", "X_AXIS",
-                    $"X축 과속: {data.VelocityX:F1}mm/s (제한: {MAX_VELOCITY}mm/s)");
+                    $"X축 과속: {s.VelocityX:F1}mm/s (제한: {MAX_VELOCITY}mm/s)");
             }
 
-            if (Math.Abs(data.VelocityY) > MAX_VELOCITY)
+            if (Math.Abs(s.VelocityY) > MAX_VELOCITY)
             {
-                RaiseError("Warning", "Y_AXIS", $"Y축 과속: {data.VelocityY:F1}mm/s");
+                RaiseError("Warning", "Y_AXIS", $"Y축 과속: {s.VelocityY:F1}mm/s");
             }
 
-            if (Math.Abs(data.VelocityZ) > MAX_VELOCITY)
+            if (Math.Abs(s.VelocityZ) > MAX_VELOCITY)
             {
-                RaiseError("Warning", "Z_AXIS", $"Z축 과속: {data.VelocityZ:F1}mm/s");
+                RaiseError("Warning", "Z_AXIS", $"Z축 과속: {s.VelocityZ:F1}mm/s");
             }
+
+            // 에러 플래그 기록 (램프 = 축 에러 중 하나라도)
+            _deviceTable.SetErrorFlags(xError || yError || zError, xError, yError, zError);
         }
 
         private void RaiseError(string level, string location, string message)

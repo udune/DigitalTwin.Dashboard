@@ -17,6 +17,7 @@ namespace DigitalTwin.Dashboard
     public partial class MainWindow : Window
     {
         // Services
+        private DeviceTable _deviceTable;
         private VirtualPLC _virtualPLC;
         private UnityIPCService _unityIPC;
         private ErrorDetector _errorDetector;
@@ -28,12 +29,10 @@ namespace DigitalTwin.Dashboard
 
         // Timers
         private DispatcherTimer _clockTimer;
+        private DispatcherTimer _uiTimer;  // ~30Hz Snapshot 폴링 (P5)
 
         // Manual Control
         private float _currentStepSize = 1.0f;
-        private float _targetX = 0f;
-        private float _targetY = 0f;
-        private float _targetZ = 0f;
         private bool _isHoming = false;  // 원점 복귀 중 플래그
 
         // Cycle Tracking
@@ -78,22 +77,25 @@ namespace DigitalTwin.Dashboard
 
         private void InitializeServices()
         {
-            // VirtualPLC 초기화
-            _virtualPLC = new VirtualPLC();
-            _virtualPLC.OnDataUpdated += VirtualPLC_OnDataUpdated;
-            _virtualPLC.OnError += VirtualPLC_OnError;
+            // DeviceTable - 단일 진실. 모든 서비스가 이걸 공유한다.
+            _deviceTable = new DeviceTable();
 
-            // ErrorDetector 초기화
-            _errorDetector = new ErrorDetector();
+            // ErrorDetector 초기화 (DeviceTable Limits를 읽어 경계 판정)
+            _errorDetector = new ErrorDetector(_deviceTable);
             _errorDetector.OnErrorDetected += ErrorDetector_OnErrorDetected;
             _errorDetector.SetCheckInterval(30.0); // 기본값 30초
 
-            // UnityIPCService 초기화
-            _unityIPC = new UnityIPCService();
+            // UnityIPCService 초기화 (수신부는 DeviceTable에 직접 기록)
+            _unityIPC = new UnityIPCService(_deviceTable);
             _unityIPC.OnConnected += UnityIPC_OnConnected;
             _unityIPC.OnDisconnected += UnityIPC_OnDisconnected;
             _unityIPC.OnError += UnityIPC_OnError;
-            _unityIPC.OnAxisDataReceived += UnityIPC_OnAxisDataReceived;
+
+            // VirtualPLC 초기화 (100Hz 루프가 DeviceTable 기반 보간·판정·송신)
+            _virtualPLC = new VirtualPLC(_deviceTable, _errorDetector);
+            _virtualPLC.OnError += VirtualPLC_OnError;
+            // OnDataUpdated는 Unity 송신 트리거 용도로만 구독(UI는 30Hz 폴링으로 분리, P5/T6)
+            _virtualPLC.OnDataUpdated += VirtualPLC_OnDataUpdated;
         }
 
         private void InitializeTimers()
@@ -110,6 +112,14 @@ namespace DigitalTwin.Dashboard
 
             // 초기 시간 표시
             TxtDateTime.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+            // ~30Hz UI 폴링 타이머: DeviceTable Snapshot을 읽어 UI/차트 갱신 (P5, 보고서 F-3 해소)
+            _uiTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(33)
+            };
+            _uiTimer.Tick += UiTimer_Tick;
+            _uiTimer.Start();
         }
 
         private void InitializeChart()
@@ -274,12 +284,8 @@ namespace DigitalTwin.Dashboard
 
         private void BtnHome_Click(object sender, RoutedEventArgs e)
         {
-            _virtualPLC.HomeAll();
-
-            // 타겟 값 초기화
-            _targetX = 0f;
-            _targetY = 0f;
-            _targetZ = 0f;
+            // 타겟을 원점으로 (DeviceTable 단일 target)
+            _deviceTable.SetTarget(0f, 0f, 0f);
 
             // 표시값 업데이트
             TxtXValue.Text = "0.0";
@@ -405,28 +411,33 @@ namespace DigitalTwin.Dashboard
 
         private void MoveAxis(char axis, int direction)
         {
-            if (_virtualPLC == null) return;
+            if (_deviceTable == null) return;
 
             float step = GetCurrentStepSize() * direction;
+
+            // 현재 target을 Snapshot에서 읽어 증분 후 DeviceTable에 기록 (P4)
+            var snap = _deviceTable.Snapshot();
+            float nx = snap.TargetX;
+            float ny = snap.TargetY;
+            float nz = snap.TargetZ;
 
             switch (axis)
             {
                 case 'X':
-                    _targetX += step;
-                    _virtualPLC.MoveX(_targetX);
-                    TxtXValue.Text = $"{_targetX:F1}";
+                    nx += step;
+                    TxtXValue.Text = $"{nx:F1}";
                     break;
                 case 'Y':
-                    _targetY += step;
-                    _virtualPLC.MoveY(_targetY);
-                    TxtYValue.Text = $"{_targetY:F1}";
+                    ny += step;
+                    TxtYValue.Text = $"{ny:F1}";
                     break;
                 case 'Z':
-                    _targetZ += step;
-                    _virtualPLC.MoveZ(_targetZ);
-                    TxtZValue.Text = $"{_targetZ:F1}";
+                    nz += step;
+                    TxtZValue.Text = $"{nz:F1}";
                     break;
             }
+
+            _deviceTable.SetTarget(nx, ny, nz);
         }
 
         private void BtnXMinus_Click(object sender, RoutedEventArgs e) => MoveAxis('X', -1);
@@ -440,61 +451,62 @@ namespace DigitalTwin.Dashboard
 
         #region VirtualPLC Event Handlers
 
+        // 100Hz 백그라운드 루프가 호출 — Unity 송신 트리거 전용(cadence 보존, T6).
+        // UI 갱신은 하지 않는다(30Hz 폴링이 담당).
         private void VirtualPLC_OnDataUpdated(AxisData data)
         {
-            Dispatcher.Invoke(() =>
-            {
-                // UI 업데이트 - 축 위치
-                TxtCurrentX.Text = $"{data.X:F1} mm";
-                TxtCurrentY.Text = $"{data.Y:F1} mm";
-                TxtCurrentZ.Text = $"{data.Z:F1} mm";
-
-                // UI 업데이트 - 축 속도
-                TxtVelocityX.Text = $"{data.VelocityX:F1}";
-                TxtVelocityY.Text = $"{data.VelocityY:F1}";
-                TxtVelocityZ.Text = $"{data.VelocityZ:F1}";
-
-                // 원점 복귀 완료 체크
-                if (_isHoming)
-                {
-                    const float HOME_THRESHOLD = 0.5f;  // 0.5mm 이내면 원점 도달로 판단
-                    if (Math.Abs(data.X) < HOME_THRESHOLD &&
-                        Math.Abs(data.Y) < HOME_THRESHOLD &&
-                        Math.Abs(data.Z) < HOME_THRESHOLD)
-                    {
-                        _isHoming = false;
-                        UpdateStatus("원점 복귀 완료", Colors.LimeGreen);
-                    }
-                }
-
-                // 차트 업데이트
-                UpdateChart(data);
-
-                // 사이클 카운트 (Z축 기준: 하단 도달 후 상단 복귀 시 1사이클)
-                CheckCycleCompletion(data);
-            });
-
-            // 오류 검사
-            _errorDetector.CheckAxisData(data);
-
-            // Unity로 데이터 전송
             _unityIPC.SendAxisData(data);
         }
 
-        private void CheckCycleCompletion(AxisData data)
+        // ~30Hz UI 폴링: DeviceTable Snapshot을 읽어 텍스트·차트·사이클을 갱신 (P5)
+        private void UiTimer_Tick(object? sender, EventArgs e)
+        {
+            var s = _deviceTable.Snapshot();
+
+            // UI 업데이트 - 축 위치
+            TxtCurrentX.Text = $"{s.CurrentX:F1} mm";
+            TxtCurrentY.Text = $"{s.CurrentY:F1} mm";
+            TxtCurrentZ.Text = $"{s.CurrentZ:F1} mm";
+
+            // UI 업데이트 - 축 속도
+            TxtVelocityX.Text = $"{s.VelocityX:F1}";
+            TxtVelocityY.Text = $"{s.VelocityY:F1}";
+            TxtVelocityZ.Text = $"{s.VelocityZ:F1}";
+
+            // 원점 복귀 완료 체크
+            if (_isHoming)
+            {
+                const float HOME_THRESHOLD = 0.5f;  // 0.5mm 이내면 원점 도달로 판단
+                if (Math.Abs(s.CurrentX) < HOME_THRESHOLD &&
+                    Math.Abs(s.CurrentY) < HOME_THRESHOLD &&
+                    Math.Abs(s.CurrentZ) < HOME_THRESHOLD)
+                {
+                    _isHoming = false;
+                    UpdateStatus("원점 복귀 완료", Colors.LimeGreen);
+                }
+            }
+
+            // 차트 업데이트
+            UpdateChart(s);
+
+            // 사이클 카운트 (Z축 기준: 하단 도달 후 상단 복귀 시 1사이클)
+            CheckCycleCompletion(s);
+        }
+
+        private void CheckCycleCompletion(DeviceSnapshot s)
         {
             const float Z_BOTTOM_THRESHOLD = -55f;  // 하단 근처
             const float Z_TOP_THRESHOLD = -5f;      // 상단 근처
 
             // Z축이 하단에 도달했는지 확인
-            if (data.Z <= Z_BOTTOM_THRESHOLD && !_wasAtBottom)
+            if (s.CurrentZ <= Z_BOTTOM_THRESHOLD && !_wasAtBottom)
             {
                 _wasAtBottom = true;
                 _cycleStartTime = DateTime.Now;
             }
 
             // Z축이 하단에서 상단으로 복귀하면 1사이클 완료
-            if (data.Z >= Z_TOP_THRESHOLD && _wasAtBottom)
+            if (s.CurrentZ >= Z_TOP_THRESHOLD && _wasAtBottom)
             {
                 _wasAtBottom = false;
 
@@ -512,12 +524,12 @@ namespace DigitalTwin.Dashboard
             }
         }
 
-        private void UpdateChart(AxisData data)
+        private void UpdateChart(DeviceSnapshot s)
         {
             // 새 데이터 추가
-            _xValues.Add(new ObservableValue(data.X));
-            _yValues.Add(new ObservableValue(data.Y));
-            _zValues.Add(new ObservableValue(data.Z));
+            _xValues.Add(new ObservableValue(s.CurrentX));
+            _yValues.Add(new ObservableValue(s.CurrentY));
+            _zValues.Add(new ObservableValue(s.CurrentZ));
 
             // 최대 데이터 포인트 유지
             if (_xValues.Count > MaxDataPoints)
@@ -611,29 +623,8 @@ namespace DigitalTwin.Dashboard
             });
         }
 
-        private void UnityIPC_OnAxisDataReceived(AxisData data)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                // Unity에서 받은 데이터를 타겟 변수에 반영
-                _targetX = data.X;
-                _targetY = data.Y;
-                _targetZ = data.Z;
-
-                // 제어 패널 텍스트 업데이트
-                TxtXValue.Text = $"{data.X:F1}";
-                TxtYValue.Text = $"{data.Y:F1}";
-                TxtZValue.Text = $"{data.Z:F1}";
-
-                // 현재 위치 표시 업데이트
-                TxtCurrentX.Text = $"{data.X:F1} mm";
-                TxtCurrentY.Text = $"{data.Y:F1} mm";
-                TxtCurrentZ.Text = $"{data.Z:F1} mm";
-
-                // VirtualPLC 위치 동기화
-                _virtualPLC.SetPosition(data.X, data.Y, data.Z);
-            });
-        }
+        // Unity 수신은 이제 UnityIPCService가 DeviceTable.SetTarget으로 직접 처리한다(T4).
+        // 화면 갱신은 30Hz 폴링(UiTimer_Tick)이 Snapshot을 읽어 담당.
 
         #endregion
 
@@ -726,6 +717,7 @@ namespace DigitalTwin.Dashboard
         {
             // 타이머 정지
             _clockTimer?.Stop();
+            _uiTimer?.Stop();
 
             // 이벤트 구독 해제
             if (_virtualPLC != null)
@@ -745,7 +737,6 @@ namespace DigitalTwin.Dashboard
                 _unityIPC.OnConnected -= UnityIPC_OnConnected;
                 _unityIPC.OnDisconnected -= UnityIPC_OnDisconnected;
                 _unityIPC.OnError -= UnityIPC_OnError;
-                _unityIPC.OnAxisDataReceived -= UnityIPC_OnAxisDataReceived;
                 _unityIPC.Stop();
             }
         }
