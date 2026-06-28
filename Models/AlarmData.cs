@@ -1,4 +1,4 @@
-﻿namespace DigitalTwin.Dashboard.Models
+namespace DigitalTwin.Dashboard.Models
 {
     internal class AlarmData
     {
@@ -7,6 +7,7 @@
         public string Level { get; set; }
         public string Location { get; set; }
         public string Message { get; set; }
+        public string Code { get; set; }
         public bool IsAcknowledged { get; set; }
 
         // 그룹화된 알람 정보
@@ -25,6 +26,7 @@
             Count = 1;
             IsExpanded = false;
             OccurrenceTimes = new List<DateTime> { DateTime.Now };
+            Code = string.Empty;
         }
 
         public string TimeString => LastTime.ToString("HH:mm:ss");
@@ -50,6 +52,6 @@
         };
 
         // 알람 그룹 키 생성 (같은 알람인지 판별)
-        public string GetGroupKey() => $"{Level}|{Location}|{Message}";
+        public string GetGroupKey() => $"{Level}|{Location}|{Code}";
     }
 }

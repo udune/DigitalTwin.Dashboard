@@ -31,17 +31,19 @@ namespace DigitalTwin.Dashboard.Services
             _errorDetector = errorDetector;
         }
 
-        public async Task Start()
+        public Task Start()
         {
             if (isRunning)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             isRunning = true;
             cts = new CancellationTokenSource();
 
-            await Task.Run(() => UpdateLoop(cts.Token));
+            _ = Task.Run(() => UpdateLoop(cts.Token));
+
+            return Task.CompletedTask;
         }
 
         public void Stop()

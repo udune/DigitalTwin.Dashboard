@@ -45,64 +45,64 @@ namespace DigitalTwin.Dashboard.Services
             // X축 리미트 체크
             if (s.CurrentX > s.XMax)
             {
-                RaiseError("Error", "X_AXIS", $"X축 리미트 초과: {s.CurrentX:F1}mm (제한: {s.XMax:F1}mm)");
+                RaiseError("Error", "X_AXIS", "X_LIMIT", $"X축 리미트 초과: {s.CurrentX:F1}mm (제한: {s.XMax:F1}mm)");
             }
             if (s.CurrentX < s.XMin)
             {
-                RaiseError("Error", "X_AXIS", $"X축 리미트 초과: {s.CurrentX:F1}mm (제한: {s.XMin:F1}mm)");
+                RaiseError("Error", "X_AXIS", "X_LIMIT", $"X축 리미트 초과: {s.CurrentX:F1}mm (제한: {s.XMin:F1}mm)");
             }
 
             // Y축 리미트 체크
             if (s.CurrentY > s.YMax)
             {
-                RaiseError("Error", "Y_AXIS", $"Y축 리미트 초과: {s.CurrentY:F1}mm (제한: {s.YMax:F1}mm)");
+                RaiseError("Error", "Y_AXIS", "Y_LIMIT", $"Y축 리미트 초과: {s.CurrentY:F1}mm (제한: {s.YMax:F1}mm)");
             }
             if (s.CurrentY < s.YMin)
             {
-                RaiseError("Error", "Y_AXIS", $"Y축 리미트 초과: {s.CurrentY:F1}mm (제한: {s.YMin:F1}mm)");
+                RaiseError("Error", "Y_AXIS", "Y_LIMIT", $"Y축 리미트 초과: {s.CurrentY:F1}mm (제한: {s.YMin:F1}mm)");
             }
 
             // Z축 범위 체크 (상한 초과 또는 하한 미만)
             if (s.CurrentZ > s.ZMax)
             {
-                RaiseError("Error", "Z_AXIS", $"Z축 상한 초과: {s.CurrentZ:F1}mm (제한: {s.ZMax:F1}mm 이하)");
+                RaiseError("Error", "Z_AXIS", "Z_LIMIT", $"Z축 상한 초과: {s.CurrentZ:F1}mm (제한: {s.ZMax:F1}mm 이하)");
             }
             if (s.CurrentZ < s.ZMin)
             {
-                RaiseError("Error", "Z_AXIS", $"Z축 하한 초과: {s.CurrentZ:F1}mm (제한: {s.ZMin:F1}mm 이상)");
+                RaiseError("Error", "Z_AXIS", "Z_LIMIT", $"Z축 하한 초과: {s.CurrentZ:F1}mm (제한: {s.ZMin:F1}mm 이상)");
             }
 
             // Z축 안전 높이 체크
             if (s.CurrentZ < Z_SAFE_HEIGHT && (Math.Abs(s.VelocityX) > 0.1f || Math.Abs(s.VelocityY) > 0.1f))
             {
-                RaiseError("Warning", "Z_AXIS", $"Z축 안전 높이 미달: {s.CurrentZ:F1}mm (XY 이동 중)");
+                RaiseError("Warning", "Z_AXIS", "Z_SAFE_HEIGHT", $"Z축 안전 높이 미달: {s.CurrentZ:F1}mm (XY 이동 중)");
             }
 
             // 과속 체크
             if (Math.Abs(s.VelocityX) > MAX_VELOCITY)
             {
-                RaiseError("Warning", "X_AXIS",
+                RaiseError("Warning", "X_AXIS", "X_OVERSPEED",
                     $"X축 과속: {s.VelocityX:F1}mm/s (제한: {MAX_VELOCITY}mm/s)");
             }
 
             if (Math.Abs(s.VelocityY) > MAX_VELOCITY)
             {
-                RaiseError("Warning", "Y_AXIS", $"Y축 과속: {s.VelocityY:F1}mm/s");
+                RaiseError("Warning", "Y_AXIS", "Y_OVERSPEED", $"Y축 과속: {s.VelocityY:F1}mm/s");
             }
 
             if (Math.Abs(s.VelocityZ) > MAX_VELOCITY)
             {
-                RaiseError("Warning", "Z_AXIS", $"Z축 과속: {s.VelocityZ:F1}mm/s");
+                RaiseError("Warning", "Z_AXIS", "Z_OVERSPEED", $"Z축 과속: {s.VelocityZ:F1}mm/s");
             }
 
             // 에러 플래그 기록 (램프 = 축 에러 중 하나라도)
             _deviceTable.SetErrorFlags(xError || yError || zError, xError, yError, zError);
         }
 
-        private void RaiseError(string level, string location, string message)
+        private void RaiseError(string level, string location, string code, string message)
         {
             // 에러 그룹 키 생성 (AlarmData.GetGroupKey()와 동일한 방식)
-            string errorKey = $"{level}|{location}|{message}";
+            string errorKey = $"{level}|{location}|{code}";
             DateTime now = DateTime.Now;
 
             // 이 에러가 이전에 발생했는지 확인
@@ -127,6 +127,7 @@ namespace DigitalTwin.Dashboard.Services
                 Time = now,
                 Level = level,
                 Location = location,
+                Code = code,
                 Message = message
             });
         }
