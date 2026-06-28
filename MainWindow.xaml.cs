@@ -11,6 +11,7 @@ using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.Defaults;
 using SkiaSharp;
+using Newtonsoft.Json;
 
 namespace DigitalTwin.Dashboard
 {
@@ -77,8 +78,28 @@ namespace DigitalTwin.Dashboard
 
         private void InitializeServices()
         {
+            // Load DeviceConfig
+            DeviceConfig config = new DeviceConfig();
+            try
+            {
+                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+                if (File.Exists(configPath))
+                {
+                    string json = File.ReadAllText(configPath);
+                    var loadedConfig = JsonConvert.DeserializeObject<DeviceConfig>(json);
+                    if (loadedConfig != null)
+                    {
+                        config = loadedConfig;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"설정 파일 로드 실패: {ex.Message}", Colors.Yellow);
+            }
+
             // DeviceTable - 단일 진실. 모든 서비스가 이걸 공유한다.
-            _deviceTable = new DeviceTable();
+            _deviceTable = new DeviceTable(config);
 
             // ErrorDetector 초기화 (DeviceTable Limits를 읽어 경계 판정)
             _errorDetector = new ErrorDetector(_deviceTable);
@@ -92,7 +113,7 @@ namespace DigitalTwin.Dashboard
             _unityIPC.OnError += UnityIPC_OnError;
 
             // VirtualPLC 초기화 (100Hz 루프가 DeviceTable 기반 보간·판정·송신)
-            _virtualPLC = new VirtualPLC(_deviceTable, _errorDetector);
+            _virtualPLC = new VirtualPLC(_deviceTable, _errorDetector, config);
             _virtualPLC.OnError += VirtualPLC_OnError;
             // OnDataUpdated는 Unity 송신 트리거 용도로만 구독(UI는 30Hz 폴링으로 분리, P5/T6)
             _virtualPLC.OnDataUpdated += VirtualPLC_OnDataUpdated;

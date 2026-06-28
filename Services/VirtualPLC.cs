@@ -14,21 +14,25 @@ namespace DigitalTwin.Dashboard.Services
         public event Action<AxisData> OnDataUpdated;
         public event Action<string> OnError;
 
-        // 물리적 이동 한계 = travel clamp (알람 경계와는 별개, P1). 여기서 유지.
-        private const float X_LIMIT = 500f;
-        private const float Y_LIMIT = 500f;
-        private const float Z_MIN = -100f;
-        private const float Z_MAX = 50f;
+        // 물리적 이동 한계 = travel clamp (알람 경계와는 별개, P1).
+        private readonly float _xLimit;
+        private readonly float _yLimit;
+        private readonly float _zMin;
+        private readonly float _zMax;
 
         private readonly DeviceTable _deviceTable;
         private readonly ErrorDetector _errorDetector;
 
         public bool IsRunning => isRunning;
 
-        public VirtualPLC(DeviceTable deviceTable, ErrorDetector errorDetector)
+        public VirtualPLC(DeviceTable deviceTable, ErrorDetector errorDetector, DeviceConfig config)
         {
             _deviceTable = deviceTable;
             _errorDetector = errorDetector;
+            _xLimit = config.XLimit;
+            _yLimit = config.YLimit;
+            _zMin = config.ZMin;
+            _zMax = config.ZMax;
         }
 
         public Task Start()
@@ -63,10 +67,10 @@ namespace DigitalTwin.Dashboard.Services
 
                     float deltaTime = 1f / UpdateRate;
 
-                    // ② 기존 보간 로직으로 새 current 계산 (±500 / Z −100~50 travel clamp는 여기 유지 = P1)
-                    float targetX = Math.Clamp(snap.TargetX, -X_LIMIT, X_LIMIT);
-                    float targetY = Math.Clamp(snap.TargetY, -Y_LIMIT, Y_LIMIT);
-                    float targetZ = Math.Clamp(snap.TargetZ, Z_MIN, Z_MAX);
+                    // ② 기존 보간 로직으로 새 current 계산 (travel clamp는 여기 유지 = P1)
+                    float targetX = Math.Clamp(snap.TargetX, -_xLimit, _xLimit);
+                    float targetY = Math.Clamp(snap.TargetY, -_yLimit, _yLimit);
+                    float targetZ = Math.Clamp(snap.TargetZ, _zMin, _zMax);
 
                     float currentX = MoveTowards(snap.CurrentX, targetX, MaxSpeed * deltaTime);
                     float currentY = MoveTowards(snap.CurrentY, targetY, MaxSpeed * deltaTime);

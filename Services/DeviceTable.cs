@@ -1,3 +1,5 @@
+using DigitalTwin.Dashboard.Models;
+
 namespace DigitalTwin.Dashboard.Services
 {
     // DeviceTable의 한 시점 상태를 통째로 복사한 불변 스냅샷.
@@ -33,13 +35,23 @@ namespace DigitalTwin.Dashboard.Services
         private float _velocityY;
         private float _velocityZ;
 
-        // 알람 경계 (P2 디폴트 = 현재 ErrorDetector 값: X/Y ±125.9, Z −60~0). 런타임 변경 가능.
-        private float _xMin = -125.9f;
-        private float _xMax = 125.9f;
-        private float _yMin = -125.9f;
-        private float _yMax = 125.9f;
-        private float _zMin = -60f;
-        private float _zMax = 0f;
+        // 알람 경계 (런타임 변경 가능)
+        private float _xMin;
+        private float _xMax;
+        private float _yMin;
+        private float _yMax;
+        private float _zMin;
+        private float _zMax;
+
+        public DeviceTable(DeviceConfig config)
+        {
+            _xMin = config.AlarmXMin;
+            _xMax = config.AlarmXMax;
+            _yMin = config.AlarmYMin;
+            _yMax = config.AlarmYMax;
+            _zMin = config.AlarmZMin;
+            _zMax = config.AlarmZMax;
+        }
 
         // 에러 플래그 (ErrorDetector가 경계 판정 결과를 기록)
         private bool _errorLamp;
