@@ -20,6 +20,7 @@ namespace DigitalTwin.Dashboard.ViewModels
         private readonly VirtualPLC _virtualPLC;
         private readonly UnityIPCService _unityIPC;
         private readonly ErrorDetector _errorDetector;
+        private readonly SlmpServer _slmp;
 
         // Data
         private readonly SystemStatus _systemStatus = new();
@@ -158,6 +159,12 @@ namespace DigitalTwin.Dashboard.ViewModels
             _virtualPLC = new VirtualPLC(_deviceTable, _errorDetector, config);
             _virtualPLC.OnError += VirtualPLC_OnError;
             _virtualPLC.OnDataUpdated += VirtualPLC_OnDataUpdated;
+
+            // SLMP 3E 서버: 기존 주입 뒤에 추가되는 순수 어댑터. 같은 DeviceTable만 경유한다.
+            // Named Pipe·UI·30Hz 폴링과 동시에 :5007에서 리슨한다.
+            _slmp = new SlmpServer(_deviceTable, 5007);
+            _slmp.OnError += SlmpServer_OnError;
+            _slmp.Start();
 
             _alarms = new ObservableCollection<AlarmData>();
             _alarms.CollectionChanged += (s, e) => OnPropertyChanged(nameof(IsExportEnabled));
@@ -455,6 +462,11 @@ namespace DigitalTwin.Dashboard.ViewModels
             UpdateStatus($"PLC 오류: {errorMessage}", Colors.Red);
         }
 
+        private void SlmpServer_OnError(string errorMessage)
+        {
+            UpdateStatus($"SLMP 오류: {errorMessage}", Colors.Red);
+        }
+
         private void UnityIPC_OnConnected()
         {
             UpdateUnityStatus(true);
@@ -539,6 +551,12 @@ namespace DigitalTwin.Dashboard.ViewModels
                 _unityIPC.OnDisconnected -= UnityIPC_OnDisconnected;
                 _unityIPC.OnError -= UnityIPC_OnError;
                 _unityIPC.Stop();
+            }
+
+            if (_slmp != null)
+            {
+                _slmp.OnError -= SlmpServer_OnError;
+                _slmp.Stop();
             }
         }
     }

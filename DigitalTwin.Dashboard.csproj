@@ -17,6 +17,15 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
+  <!-- SLMP 자기검증용 콘솔 클라이언트(T6)는 별도 프로젝트다.
+       WPF 프로젝트의 기본 .cs 글로빙에 끌려들어가지 않게 제외한다. -->
+  <ItemGroup>
+    <Compile Remove="SlmpTestClient\**" />
+    <EmbeddedResource Remove="SlmpTestClient\**" />
+    <None Remove="SlmpTestClient\**" />
+    <Page Remove="SlmpTestClient\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

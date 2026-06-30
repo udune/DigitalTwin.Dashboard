@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- SLMP 3E 서버(STEP 2B) 자기검증용 콘솔 클라이언트.
+       데모/제품 아님. WPF 앱을 실행해 Start를 누른 뒤 이 클라이언트를 돌려
+       §6 인수 시나리오 4종을 자동 점검한다. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SlmpTestClient</RootNamespace>
+  </PropertyGroup>
+
+</Project>
