@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- OPC UA 서버(STEP 2C) 자기검증용 콘솔 클라이언트.
+       데모/제품 아님. UaExpert가 없는 환경에서 §6 인수 시나리오를 자동 점검한다.
+       (UaExpert가 1차 검증, 이 클라이언트는 2차/대체 검증.) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>OpcUaTestClient</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Client" Version="1.5.378.152" />
+  </ItemGroup>
+
+</Project>

@@ -21,6 +21,7 @@ namespace DigitalTwin.Dashboard.ViewModels
         private readonly UnityIPCService _unityIPC;
         private readonly ErrorDetector _errorDetector;
         private readonly SlmpServer _slmp;
+        private readonly OpcUaServer _opcua;
 
         // Data
         private readonly SystemStatus _systemStatus = new();
@@ -165,6 +166,14 @@ namespace DigitalTwin.Dashboard.ViewModels
             _slmp = new SlmpServer(_deviceTable, 5007);
             _slmp.OnError += SlmpServer_OnError;
             _slmp.Start();
+
+            // OPC UA 서버: SLMP 바로 뒤에 동일 패턴으로 추가되는 북향 게이트웨이.
+            // 같은 DeviceTable을 백킹으로 공유한다(단일 진실). opc.tcp://localhost:4840.
+            // OPC UA 서버: SLMP 바로 뒤에 동일 패턴으로 추가되는 북향 게이트웨이.
+            // 같은 DeviceTable을 백킹으로 공유한다(단일 진실). opc.tcp://localhost:4840.
+            _opcua = new OpcUaServer(_deviceTable, 4840);
+            _opcua.OnError += OpcUaServer_OnError;
+            _opcua.Start();
 
             _alarms = new ObservableCollection<AlarmData>();
             _alarms.CollectionChanged += (s, e) => OnPropertyChanged(nameof(IsExportEnabled));
@@ -467,6 +476,11 @@ namespace DigitalTwin.Dashboard.ViewModels
             UpdateStatus($"SLMP 오류: {errorMessage}", Colors.Red);
         }
 
+        private void OpcUaServer_OnError(string errorMessage)
+        {
+            UpdateStatus($"OPC UA 오류: {errorMessage}", Colors.Red);
+        }
+
         private void UnityIPC_OnConnected()
         {
             UpdateUnityStatus(true);
@@ -557,6 +571,12 @@ namespace DigitalTwin.Dashboard.ViewModels
             {
                 _slmp.OnError -= SlmpServer_OnError;
                 _slmp.Stop();
+            }
+
+            if (_opcua != null)
+            {
+                _opcua.OnError -= OpcUaServer_OnError;
+                _opcua.Stop();
             }
         }
     }

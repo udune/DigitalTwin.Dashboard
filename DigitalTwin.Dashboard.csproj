@@ -13,17 +13,22 @@
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.0-rc5.2" />
     <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.378.152" />
     <PackageReference Include="Serilog" Version="4.3.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
-  <!-- SLMP 자기검증용 콘솔 클라이언트(T6)는 별도 프로젝트다.
+  <!-- 자기검증용 콘솔 클라이언트(SLMP/OPC UA)는 별도 프로젝트다.
        WPF 프로젝트의 기본 .cs 글로빙에 끌려들어가지 않게 제외한다. -->
   <ItemGroup>
     <Compile Remove="SlmpTestClient\**" />
     <EmbeddedResource Remove="SlmpTestClient\**" />
     <None Remove="SlmpTestClient\**" />
     <Page Remove="SlmpTestClient\**" />
+    <Compile Remove="OpcUaTestClient\**" />
+    <EmbeddedResource Remove="OpcUaTestClient\**" />
+    <None Remove="OpcUaTestClient\**" />
+    <Page Remove="OpcUaTestClient\**" />
   </ItemGroup>
 
   <ItemGroup>
