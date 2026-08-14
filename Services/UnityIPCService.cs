@@ -177,13 +177,23 @@ namespace DigitalTwin.Dashboard.Services
         public void SendError(AlarmData alarm) => SendMessage(new
         {
             type = "error",
-            location = alarm.Location,
-            level = alarm.Level,
+            source = ToUnitySource(alarm.Location),  // "X_AXIS" → "XAxis"
+            errorType = alarm.Level,                  // "Error"/"Warning" (값은 그대로 일치)
             message = alarm.Message,
             timestamp = alarm.Time.ToString("o")
         });
 
-        public void SendClearError() => SendMessage(new { type = "clear_error" });
+        public void SendClearError() => SendMessage(new { type = "clear_all_errors" });
+
+        // AlarmData.Location("X_AXIS") → Unity ParseErrorSource가 받는 형식("XAxis")으로 변환.
+        // (ErrorDetector 내부의 Location 문자열은 dedup 키·UI에 쓰이므로 건드리지 않고, 송신 경계에서만 변환)
+        private static string ToUnitySource(string location) => location switch
+        {
+            "X_AXIS" => "XAxis",
+            "Y_AXIS" => "YAxis",
+            "Z_AXIS" => "ZAxis",
+            _ => location
+        };
 
         public void Stop()
         {
