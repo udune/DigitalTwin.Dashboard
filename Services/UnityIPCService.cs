@@ -11,9 +11,14 @@ namespace DigitalTwin.Dashboard.Services
         private NamedPipeServerStream pipeServer;
         private StreamWriter writer;
         private StreamReader reader;
-        private bool isRunning = false;
-        private bool isConnected = false;
+        private volatile bool isRunning = false;
+        private volatile bool isConnected = false;
         private CancellationTokenSource readCancellation;
+        private Task acceptLoopTask;
+
+        // writer/reader는 재연결 때마다 교체되고, 100Hz 제어 스레드·UI 스레드·Accept 루프가
+        // 동시에 접근하므로 반드시 lock으로 보호한다. (§4-4)
+        private readonly object _writeLock = new object();
 
         public bool IsConnected => isConnected;
 
@@ -30,21 +35,35 @@ namespace DigitalTwin.Dashboard.Services
             _deviceTable = deviceTable;
         }
 
-        public async Task Start()
+        public Task Start()
         {
             if (isRunning)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             isRunning = true;
             readCancellation = new CancellationTokenSource();
 
-            await Task.Run(async () =>
+            // Accept 루프를 Task로 보관해 두었다가 Stop()에서 종료를 짧게 기다린다. (§4-5)
+            acceptLoopTask = Task.Run(() => AcceptLoop(readCancellation.Token));
+            return Task.CompletedTask;
+        }
+
+        // Unity가 끊기면 파이프를 정리하고 다시 대기 상태로 돌아간다.
+        // STOP 또는 종료(취소) 전까지 이 반복을 계속한다. (§3, §4-1)
+        private async Task AcceptLoop(CancellationToken token)
+        {
+            while (isRunning && !token.IsCancellationRequested)
             {
+                NamedPipeServerStream server = null;
+                bool wasConnected = false;
+
                 try
                 {
-                    pipeServer = new NamedPipeServerStream(
+                    // 매 회차마다 새 인스턴스를 만들고, finally에서 Dispose 한다.
+                    // 안 치우면 max instances=1 자리를 계속 점유해 다음 연결이 실패한다. (§2-(d))
+                    server = new NamedPipeServerStream(
                         PipeName,
                         PipeDirection.InOut,
                         1,
@@ -52,34 +71,56 @@ namespace DigitalTwin.Dashboard.Services
                         PipeOptions.Asynchronous
                      );
 
+                    pipeServer = server;
+
                     Console.WriteLine("유니티 연결 대기중...");
 
-                    await pipeServer.WaitForConnectionAsync();
+                    await server.WaitForConnectionAsync(token);
 
+                    // 연결 성립
+                    SetStream(new StreamWriter(server) { AutoFlush = true },
+                              new StreamReader(server));
                     isConnected = true;
-
-                    writer = new StreamWriter(pipeServer)
-                    {
-                        AutoFlush = true
-                    };
-
-                    reader = new StreamReader(pipeServer);
+                    wasConnected = true;
 
                     Console.WriteLine("유니티 연결 성공!");
                     OnConnected?.Invoke();
 
-                    // 읽기 루프 시작
-                    _ = StartReadLoop(readCancellation.Token);
+                    // ★ 반드시 await — 던져놓으면 연결 종료 시점을 알 수 없어 재대기가 불가능. (§4-2)
+                    await ReadLoop(token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;                       // STOP 또는 종료
                 }
                 catch (Exception e)
                 {
-                    isConnected = false;
-                    OnError?.Invoke($"Start 오류: {e.Message}");
+                    OnError?.Invoke($"IPC 오류: {e.Message}");
                 }
-            });
+                finally
+                {
+                    isConnected = false;
+                    SetStream(null, null);       // writer/reader 교체 + 정리
+                    try { server?.Dispose(); } catch { }
+
+                    // 끊김 통보는 여기 한 곳에서만, 실제로 연결됐던 경우에만 1회. (§4-3)
+                    if (wasConnected) OnDisconnected?.Invoke();
+                }
+
+                // 연속 실패 시 CPU를 태우지 않도록 재대기 전 짧은 지연. (§4-2 #5)
+                if (isRunning && !token.IsCancellationRequested)
+                {
+                    try { await Task.Delay(500, token); }
+                    catch (OperationCanceledException) { break; }
+                }
+            }
+
+            isRunning = false;
         }
 
-        private async Task StartReadLoop(CancellationToken cancellationToken)
+        // 읽기 루프는 isConnected = false 만 설정하고 조용히 빠져나온다.
+        // 끊김 통보(OnDisconnected)는 AcceptLoop의 finally가 전담한다. (§4-3)
+        private async Task ReadLoop(CancellationToken cancellationToken)
         {
             try
             {
@@ -89,9 +130,7 @@ namespace DigitalTwin.Dashboard.Services
 
                     if (json == null)
                     {
-                        // 연결 종료
-                        isConnected = false;
-                        OnDisconnected?.Invoke();
+                        // 상대가 연결을 닫음(정상 EOF)
                         break;
                     }
 
@@ -100,15 +139,11 @@ namespace DigitalTwin.Dashboard.Services
             }
             catch (IOException)
             {
-                isConnected = false;
-                OnDisconnected?.Invoke();
+                // 파이프가 급하게 끊긴 경우도 정상적인 끊김으로 처리 — 조용히 빠져나온다.
             }
-            catch (Exception e)
+            finally
             {
-                if (!cancellationToken.IsCancellationRequested)
-                {
-                    OnError?.Invoke($"읽기 오류: {e.Message}");
-                }
+                isConnected = false;
             }
         }
 
@@ -140,22 +175,38 @@ namespace DigitalTwin.Dashboard.Services
             }
         }
 
+        // writer/reader 교체는 반드시 lock 안에서. 교체 시 이전 writer를 정리한다.
+        // 주의: StreamWriter.Dispose는 내부 스트림(파이프)까지 닫지만, 여기선 매 회차
+        // 새 파이프를 쓰고 finally에서 그 파이프를 Dispose 하므로 이중 정리로 안전하다. (§4-4)
+        private void SetStream(StreamWriter w, StreamReader r)
+        {
+            lock (_writeLock)
+            {
+                try { writer?.Dispose(); } catch { }
+                writer = w;
+                reader = r;
+            }
+        }
+
         private void SendMessage(object message)
         {
-            if (!isRunning || writer == null) return;
+            lock (_writeLock)
+            {
+                if (!isRunning || !isConnected || writer == null) return;
 
-            try
-            {
-                writer.WriteLine(JsonConvert.SerializeObject(message));
-            }
-            catch (IOException)
-            {
-                isConnected = false;
-                OnDisconnected?.Invoke();
-            }
-            catch (Exception e)
-            {
-                OnError?.Invoke($"전송 오류: {e.Message}");
+                try
+                {
+                    writer.WriteLine(JsonConvert.SerializeObject(message));
+                }
+                catch (IOException)
+                {
+                    // 끊김 통보는 AcceptLoop에서 전담. 여기선 상태만 내린다. (§4-3, §4-4)
+                    isConnected = false;
+                }
+                catch (Exception e)
+                {
+                    OnError?.Invoke($"전송 오류: {e.Message}");
+                }
             }
         }
 
@@ -200,10 +251,12 @@ namespace DigitalTwin.Dashboard.Services
             isRunning = false;
             isConnected = false;
 
+            // 반복문 종료 신호. 스트림 정리는 AcceptLoop의 finally가 전담하므로
+            // 여기서 직접 닫지 않는다(이중 정리 예외 방지). (§4-5)
             readCancellation?.Cancel();
-            reader?.Close();
-            writer?.Close();
-            pipeServer?.Close();
+
+            // Accept 루프가 정리를 마칠 때까지 짧게 기다린다.
+            try { acceptLoopTask?.Wait(TimeSpan.FromSeconds(1)); } catch { }
 
             Console.WriteLine("Service stopped");
         }
