@@ -126,7 +126,7 @@ namespace DigitalTwin.Dashboard.Services
             {
                 while (isRunning && !cancellationToken.IsCancellationRequested)
                 {
-                    string json = await reader.ReadLineAsync();
+                    string json = await reader.ReadLineAsync(cancellationToken);
 
                     if (json == null)
                     {
