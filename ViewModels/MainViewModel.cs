@@ -148,7 +148,7 @@ namespace DigitalTwin.Dashboard.ViewModels
 
             _deviceTable = new DeviceTable(config);
 
-            _errorDetector = new ErrorDetector(_deviceTable);
+            _errorDetector = new ErrorDetector(_deviceTable, config);
             _errorDetector.OnErrorDetected += ErrorDetector_OnErrorDetected;
             _errorDetector.SetCheckInterval(_checkInterval);
 
@@ -177,6 +177,10 @@ namespace DigitalTwin.Dashboard.ViewModels
 
             _alarms = new ObservableCollection<AlarmData>();
             _alarms.CollectionChanged += (s, e) => OnPropertyChanged(nameof(IsExportEnabled));
+
+            // 알람 목록이 준비된 뒤 1회 점검: 과속 임계가 최고 속도 이상이면
+            // 그 경보는 절대 발생하지 않으므로 시작 시 경고로 드러낸다.
+            _errorDetector.ValidateConfiguration();
 
             InitializeTimers();
         }

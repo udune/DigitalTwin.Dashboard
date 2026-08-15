@@ -6,7 +6,11 @@ namespace DigitalTwin.Dashboard.Services
     {
         // 알람 경계(X/Y/Z 한계)는 DeviceTable의 Limits에서 읽는다(P2). 하드코딩 제거.
         private const float Z_SAFE_HEIGHT = -30f;  // -30보다 아래에서 XY 이동 시 경고
-        private const float MAX_VELOCITY = 150f;
+
+        // 과속 임계와 보간 최대 속도는 설정값(appsettings.json)이다.
+        // 산출 속도의 상한이 _maxSpeed이므로 _maxVelocity >= _maxSpeed면 과속 경보는 도달 불가능하다.
+        private readonly float _maxVelocity;
+        private readonly float _maxSpeed;
 
         // 반복 알람 간격 설정 (초 단위) - 같은 에러의 재발생 간격
         private double _repeatIntervalSeconds = 30.0;
@@ -18,9 +22,29 @@ namespace DigitalTwin.Dashboard.Services
 
         public event Action<AlarmData> OnErrorDetected;
 
-        public ErrorDetector(DeviceTable deviceTable)
+        public ErrorDetector(DeviceTable deviceTable, DeviceConfig config)
         {
             _deviceTable = deviceTable;
+            _maxVelocity = config.AlarmMaxVelocity;
+            _maxSpeed = config.MaxSpeed > 0f ? config.MaxSpeed : 100f;
+        }
+
+        // 과속 경보가 실제로 발생할 수 있는 설정인지 여부.
+        public bool IsOverspeedReachable => _maxVelocity < _maxSpeed;
+
+        // 설정 불일치 점검. OnErrorDetected 구독을 끝낸 뒤 1회 호출한다.
+        // 과속 임계가 최고 속도 이상이면 해당 경보는 영원히 울리지 않으므로,
+        // 조용히 죽어 있는 대신 경고 알람으로 한 번 드러낸다.
+        public void ValidateConfiguration()
+        {
+            if (IsOverspeedReachable)
+            {
+                return;
+            }
+
+            RaiseError("Warning", "SYSTEM", "CONFIG_OVERSPEED_UNREACHABLE",
+                $"과속 경보 도달 불가: 임계 {_maxVelocity:F1}mm/s ≥ 최고 속도 {_maxSpeed:F1}mm/s " +
+                $"(appsettings.json의 AlarmMaxVelocity 또는 MaxSpeed 확인)");
         }
 
         // 반복 알람 간격 설정 (초 단위)
@@ -78,21 +102,23 @@ namespace DigitalTwin.Dashboard.Services
                 RaiseError("Warning", "Z_AXIS", "Z_SAFE_HEIGHT", $"Z축 안전 높이 미달: {s.CurrentZ:F1}mm (XY 이동 중)");
             }
 
-            // 과속 체크
-            if (Math.Abs(s.VelocityX) > MAX_VELOCITY)
+            // 과속 체크 (임계는 설정값 AlarmMaxVelocity)
+            if (Math.Abs(s.VelocityX) > _maxVelocity)
             {
                 RaiseError("Warning", "X_AXIS", "X_OVERSPEED",
-                    $"X축 과속: {s.VelocityX:F1}mm/s (제한: {MAX_VELOCITY}mm/s)");
+                    $"X축 과속: {s.VelocityX:F1}mm/s (제한: {_maxVelocity:F1}mm/s)");
             }
 
-            if (Math.Abs(s.VelocityY) > MAX_VELOCITY)
+            if (Math.Abs(s.VelocityY) > _maxVelocity)
             {
-                RaiseError("Warning", "Y_AXIS", "Y_OVERSPEED", $"Y축 과속: {s.VelocityY:F1}mm/s");
+                RaiseError("Warning", "Y_AXIS", "Y_OVERSPEED",
+                    $"Y축 과속: {s.VelocityY:F1}mm/s (제한: {_maxVelocity:F1}mm/s)");
             }
 
-            if (Math.Abs(s.VelocityZ) > MAX_VELOCITY)
+            if (Math.Abs(s.VelocityZ) > _maxVelocity)
             {
-                RaiseError("Warning", "Z_AXIS", "Z_OVERSPEED", $"Z축 과속: {s.VelocityZ:F1}mm/s");
+                RaiseError("Warning", "Z_AXIS", "Z_OVERSPEED",
+                    $"Z축 과속: {s.VelocityZ:F1}mm/s (제한: {_maxVelocity:F1}mm/s)");
             }
 
             // 에러 플래그 기록 (램프 = 축 에러 중 하나라도)

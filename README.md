@@ -42,7 +42,7 @@ SLMP·OPC UA 서버는 `DeviceTable`만 참조하는 어댑터로 추가됐습�
 
 ### 가상 PLC
 - 100Hz 결정적 업데이트 루프 (`Task.Delay` 기반 비동기)
-- `MoveTowards` 등속 보간, 최대 속도 100mm/s
+- `MoveTowards` 등속 보간, 최대 속도 `MaxSpeed` 설정값 (기본 100mm/s)
 - 물리적 이동 한계(travel clamp)와 알람 경계를 분리해 관리
 - 실제 이동 거리로부터 속도 역산
 
@@ -55,9 +55,15 @@ SLMP·OPC UA 서버는 `DeviceTable`만 참조하는 어댑터로 추가됐습�
 | Y축 리미트 초과 | Y < YMin 또는 Y > YMax | Error | `Y_LIMIT` |
 | Z축 범위 초과 | Z < ZMin 또는 Z > ZMax | Error | `Z_LIMIT` |
 | 안전 높이 미달 | Z < -30mm 이면서 XY 이동 중 | Warning | `Z_SAFE_HEIGHT` |
-| 축 과속 | \|V\| > 150mm/s | Warning | `*_OVERSPEED` |
+| 축 과속 | \|V\| > `AlarmMaxVelocity` (기본 150mm/s) | Warning | `*_OVERSPEED` |
+| 과속 설정 불일치 | `AlarmMaxVelocity` ≥ `MaxSpeed` (시작 시 1회) | Warning | `CONFIG_OVERSPEED_UNREACHABLE` |
 
 경계값은 `appsettings.json`으로 외부화돼 있고, 런타임 중 SLMP/OPC UA를 통해서도 변경할 수 있습니다.
+
+**과속 경보의 도달 조건.** 속도는 `MoveTowards`가 자른 실제 이동 거리에서 역산되므로 \|V\|는 항상 `MaxSpeed` 이하입니다.
+따라서 `AlarmMaxVelocity`를 `MaxSpeed` 이상으로 두면 과속 경보는 구조적으로 발생할 수 없습니다.
+**기본값(100 / 150)이 바로 그 경우**이며, 이때 대시보드는 시작 시 `CONFIG_OVERSPEED_UNREACHABLE` 경고를 한 번 올려 이 사실을 알립니다.
+과속 경보를 실제로 쓰려면 `AlarmMaxVelocity`를 `MaxSpeed`보다 낮추거나 `MaxSpeed`를 임계 위로 올리십시오.
 
 ### 대시보드 UI
 - 3축 현재 위치·속도 실시간 표시 (0.1mm)
@@ -206,11 +212,16 @@ dotnet run --project OpcUaTestClient
   "AlarmYMin": -125.9,
   "AlarmYMax": 125.9,
   "AlarmZMin": -60.0,
-  "AlarmZMax": 0.0
+  "AlarmZMax": 0.0,
+  "MaxSpeed": 100.0,          // 보간 최대 속도 (mm/s) — |V|의 상한
+  "AlarmMaxVelocity": 150.0   // 과속 경보 임계 (mm/s) — MaxSpeed 이상이면 도달 불가
 }
 ```
 
 물리적 한계와 알람 경계는 별개입니다. 전자는 축이 물리적으로 갈 수 있는 범위(클램프), 후자는 그 안에서 경보를 울릴 기준선입니다.
+
+`MaxSpeed`와 `AlarmMaxVelocity`도 마찬가지로 짝을 이룹니다. 전자가 속도의 상한을 만들고 후자가 그 안에서 경보 기준선이 되므로,
+후자를 전자 이상으로 두면 경보는 울리지 않습니다(시작 시 경고로 통지). `MaxSpeed`가 0 이하이면 축이 멈춰버리므로 기본값 100으로 되돌립니다.
 
 ---
 
@@ -245,6 +256,7 @@ DigitalTwin.Dashboard/
 - SLMP·OPC UA 포트가 코드에 고정돼 있습니다. `appsettings.json`으로 옮길 예정입니다.
 - OPC UA는 익명 접속만 지원하며 보안 정책(인증서, 서명·암호화)을 적용하지 않았습니다.
 - 가상 PLC는 등속 이동 모델입니다. 가감속 프로파일은 미구현입니다.
+- 기본 설정(`MaxSpeed` 100 / `AlarmMaxVelocity` 150)에서는 과속 경보가 발생하지 않습니다. 시작 시 `CONFIG_OVERSPEED_UNREACHABLE` 경고로 통지되며, 쓰려면 두 값을 조정해야 합니다.
 
 ## 로드맵
 

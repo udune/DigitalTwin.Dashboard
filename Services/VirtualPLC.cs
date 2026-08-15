@@ -4,7 +4,6 @@ namespace DigitalTwin.Dashboard.Services
 {
     internal class VirtualPLC
     {
-        private const float MaxSpeed = 100.0f;
         private const float MaxAccel = 500.0f;
         private const int UpdateRate = 100;
 
@@ -20,6 +19,10 @@ namespace DigitalTwin.Dashboard.Services
         private readonly float _zMin;
         private readonly float _zMax;
 
+        // 보간 최대 속도 = 설정값(mm/s). 산출 속도의 상한을 결정하므로
+        // 과속 경보 임계(DeviceConfig.AlarmMaxVelocity)와 짝을 이룬다.
+        private readonly float _maxSpeed;
+
         private readonly DeviceTable _deviceTable;
         private readonly ErrorDetector _errorDetector;
 
@@ -33,7 +36,11 @@ namespace DigitalTwin.Dashboard.Services
             _yLimit = config.YLimit;
             _zMin = config.ZMin;
             _zMax = config.ZMax;
+            // 0 이하면 축이 영원히 멈추므로 기본값으로 되돌린다.
+            _maxSpeed = config.MaxSpeed > 0f ? config.MaxSpeed : 100f;
         }
+
+        public float MaxSpeed => _maxSpeed;
 
         public Task Start()
         {
@@ -72,9 +79,9 @@ namespace DigitalTwin.Dashboard.Services
                     float targetY = Math.Clamp(snap.TargetY, -_yLimit, _yLimit);
                     float targetZ = Math.Clamp(snap.TargetZ, _zMin, _zMax);
 
-                    float currentX = MoveTowards(snap.CurrentX, targetX, MaxSpeed * deltaTime);
-                    float currentY = MoveTowards(snap.CurrentY, targetY, MaxSpeed * deltaTime);
-                    float currentZ = MoveTowards(snap.CurrentZ, targetZ, MaxSpeed * deltaTime);
+                    float currentX = MoveTowards(snap.CurrentX, targetX, _maxSpeed * deltaTime);
+                    float currentY = MoveTowards(snap.CurrentY, targetY, _maxSpeed * deltaTime);
+                    float currentZ = MoveTowards(snap.CurrentZ, targetZ, _maxSpeed * deltaTime);
 
                     // 속도 계산 (실제 이동한 거리 / 시간)
                     float velX = (currentX - snap.CurrentX) / deltaTime;
