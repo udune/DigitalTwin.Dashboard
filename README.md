@@ -24,8 +24,7 @@
                                    WPF UI (MVVM)
 ```
 
-\* 제어 루프의 목표 주기는 100Hz지만 Windows 타이머 해상도(~15.6ms)에 눌려 실제로는 ~64Hz로 돕니다.
-이동량·속도는 이 실제 주기를 재서 계산하므로 명령한 mm/s는 그대로 지켜집니다. ([아래 참조](#가상-plc))
+\* 제어 루프의 목표 주기는 100Hz지만 Windows 타이머 해상도(~15.6ms)에 눌려 실제로는 ~64Hz로 돕니다. 이동량·속도는 이 실제 주기를 재서 계산하므로 명령한 mm/s는 그대로 지켜집니다.
 
 ### 설계 원칙
 
@@ -51,13 +50,9 @@ SLMP·OPC UA 서버는 `DeviceTable`만 참조하는 어댑터로 추가됐습�
 - 물리적 이동 한계(travel clamp)와 알람 경계를 분리해 관리
 - 실제 이동 거리로부터 속도 역산
 
-**루프 주기는 목표치이지 보장치가 아닙니다.** Windows 기본 타이머 해상도가 약 15.6ms라
-`Task.Delay(10)`는 실제로 ~15.5ms 걸리고, 루프는 100Hz가 아니라 **약 64Hz**로 돕니다
-(이 리포 개발 환경 실측: 64.5Hz / 평균 주기 15.51ms).
-그래서 이동량과 속도는 가정한 주기(1/100초)가 아니라 `Stopwatch`로 잰 **실제 경과 시간**으로 계산합니다.
-가정값을 쓰면 명령 속도 100mm/s가 실제로는 ~64mm/s로 움직이면서 화면에는 100으로 표시되는
-1.55배 부풀림이 생기고, 사이클 타임 통계도 같이 틀어집니다.
-루프가 오래 멈췄다 재개할 때 축이 순간이동하지 않도록 경과 시간은 100ms로 상한을 둡니다.
+루프 주기는 목표치이지 보장치가 아닙니다. Windows 기본 타이머 해상도가 약 15.6ms라 `Task.Delay(10)`는 실제로 ~15.5ms 걸리고, 루프는 100Hz가 아니라 약 64Hz로 돕니다 (개발 환경 실측: 64.5Hz / 평균 주기 15.51ms).
+
+그래서 이동량과 속도는 가정한 주기(1/100초)가 아니라 `Stopwatch`로 잰 실제 경과 시간으로 계산합니다. 가정값을 쓰면 명령 속도 100mm/s가 실제로는 ~64mm/s로 움직이면서 화면에는 100으로 표시되는 1.55배 부풀림이 생기고, 사이클 타임 통계도 같이 틀어집니다. 루프가 오래 멈췄다 재개할 때 축이 순간이동하지 않도록 경과 시간은 100ms로 상한을 둡니다.
 
 ### 오류 감지
 제어 루프가 위치를 기록한 직후 매 회차 UI 스레드 밖에서 판정합니다. 같은 오류는 기본 30초 간격으로만 재기록되며, 이 간격은 UI 슬라이더로 조정할 수 있습니다.
@@ -73,10 +68,7 @@ SLMP·OPC UA 서버는 `DeviceTable`만 참조하는 어댑터로 추가됐습�
 
 경계값은 `appsettings.json`으로 외부화돼 있고, 런타임 중 SLMP/OPC UA를 통해서도 변경할 수 있습니다.
 
-**과속 경보의 도달 조건.** 속도는 `MoveTowards`가 자른 실제 이동 거리에서 역산되므로 \|V\|는 항상 `MaxSpeed` 이하입니다.
-따라서 `AlarmMaxVelocity`를 `MaxSpeed` 이상으로 두면 과속 경보는 구조적으로 발생할 수 없습니다.
-**기본값(100 / 150)이 바로 그 경우**이며, 이때 대시보드는 시작 시 `CONFIG_OVERSPEED_UNREACHABLE` 경고를 한 번 올려 이 사실을 알립니다.
-과속 경보를 실제로 쓰려면 `AlarmMaxVelocity`를 `MaxSpeed`보다 낮추거나 `MaxSpeed`를 임계 위로 올리십시오.
+속도는 `MoveTowards`가 자른 실제 이동 거리에서 역산되므로 \|V\|는 항상 `MaxSpeed` 이하입니다. 따라서 `AlarmMaxVelocity`를 `MaxSpeed` 이상으로 두면 과속 경보는 구조적으로 발생할 수 없습니다. 기본값(100 / 150)이 바로 그 경우이며, 이때 대시보드는 시작 시 `CONFIG_OVERSPEED_UNREACHABLE` 경고를 한 번 올려 이 사실을 알립니다. 과속 경보를 실제로 쓰려면 `AlarmMaxVelocity`를 `MaxSpeed`보다 낮추거나 `MaxSpeed`를 임계 위로 올려야 합니다.
 
 ### 대시보드 UI
 - 3축 현재 위치·속도 실시간 표시 (0.1mm)
@@ -110,15 +102,12 @@ SLMP·OPC UA 서버는 `DeviceTable`만 참조하는 어댑터로 추가됐습�
 
 | 명령 | 서브 | 동작 | 지원 |
 |---|---|---|---|
-| `0x0401` | `0x0000` | Word Read | ✅ D 디바이스 |
-| `0x1401` | `0x0000` | Word Write | ✅ D6~D8, D10~D15 만 |
-| `0x0401` | `0x0001` | Bit Read | ✅ M 디바이스 |
-| `0x1401` | `0x0001` | Bit Write | ❌ **미지원 — `0xC059` 반환** |
+| `0x0401` | `0x0000` | Word Read | D 디바이스 |
+| `0x1401` | `0x0000` | Word Write | D6~D8, D10~D15 만 |
+| `0x0401` | `0x0001` | Bit Read | M 디바이스 |
+| `0x1401` | `0x0001` | Bit Write | 미지원 (`0xC059` 반환) |
 
-**Bit Write를 지원하지 않는 이유.** 이 맵의 M 디바이스(M100~M103)는 전부 `ErrorDetector`가
-판정 결과로 쓰는 **출력 플래그라 읽기 전용**입니다. 즉 쓸 수 있는 비트가 하나도 없어서,
-프레임은 인식하되 `0xC059`로 거부합니다. 위 디바이스 표의 M 항목이 전부 `R`인 것과 같은 이야기입니다.
-`SlmpTestClient` 시나리오 ⑤가 이 거부 동작을 정상 동작으로 검증합니다.
+Bit Write를 지원하지 않는 것은 이 맵의 M 디바이스(M100~M103)가 전부 `ErrorDetector`의 판정 결과, 즉 읽기 전용 출력 플래그이기 때문입니다. 쓸 수 있는 비트가 하나도 없어서 프레임은 인식하되 `0xC059`로 거부합니다. 위 디바이스 표의 M 항목이 전부 `R`인 것과 같은 이야기입니다. `SlmpTestClient` 검증 시나리오 5번이 이 거부 동작을 확인합니다.
 
 **엔드 코드**
 
@@ -200,30 +189,26 @@ dotnet run
 dotnet test DigitalTwin.Dashboard.slnx
 ```
 
-**79개 테스트**가 자동으로 돕니다. 앱을 띄우거나 버튼을 누를 필요는 없습니다.
+79개 테스트가 자동으로 돕니다. 앱을 띄우거나 버튼을 누를 필요는 없습니다.
 
 | 파일 | 대상 | 다루는 내용 |
 |---|---|---|
 | `Slmp/SlmpProtocolTests.cs` | SLMP 프레임 해석기 | 정상 요청(워드/비트 읽기·쓰기), 쪼개져 온 데이터, 맵 밖·읽기 전용 주소, 잘못된 명령·디바이스 코드, 점 수 범위 |
-| `Slmp/WordConversionTests.cs` | float ↔ 워드 변환 | ×10 스케일, 반올림, **`short` 범위를 넘는 값의 클램프**(래핑 방지) |
-| `ErrorDetectorTests.cs` | 오류 감지기 | 경계선 안/밖, 축별 플래그, 안전 높이, 과속, **같은 경보 반복 억제** |
-| `MotionTests.cs` | 위치 계산 | **목표를 지나치지 않음**(오버슈트 금지), 설정 주입, 루프가 명령한 속도로 도는지 |
+| `Slmp/WordConversionTests.cs` | float ↔ 워드 변환 | ×10 스케일, 반올림, `short` 범위를 넘는 값의 클램프(래핑 방지) |
+| `ErrorDetectorTests.cs` | 오류 감지기 | 경계선 안/밖, 축별 플래그, 안전 높이, 과속, 같은 경보 반복 억제 |
+| `MotionTests.cs` | 위치 계산 | 오버슈트 금지, 설정 주입, 루프가 명령한 속도로 도는지 |
 
-SLMP 테스트는 서버를 빈 포트에 띄우고 **실제 TCP로** 말을 겁니다. 파서를 리플렉션으로 끄집어내는 대신
-`ProcessFrame` → `BuildResponse` → 부분 수신 재조립까지 와이어 그대로 한 번에 검증하기 위해서입니다.
-서비스·모델이 전부 `internal`이라, 테스트 어셈블리에만 `InternalsVisibleTo`로 접근을 열었습니다.
+SLMP 테스트는 서버를 빈 포트에 띄우고 실제 TCP로 말을 겁니다. 파서를 리플렉션으로 끄집어내는 대신 프레임 파싱부터 응답 빌드, 부분 수신 재조립까지 와이어 그대로 검증하기 위해서입니다. 서비스·모델이 전부 `internal`이라 테스트 어셈블리에만 `InternalsVisibleTo`로 접근을 열었습니다.
 
 ### CI
 
-`main` 대상 push/PR마다 GitHub Actions가 `restore → build → test`를 Release 구성으로 돌립니다
-(`.github/workflows/ci.yml`). WPF가 포함돼 있어 `windows-latest` 러너를 씁니다.
+`main` 대상 push/PR마다 GitHub Actions가 restore, build, test를 Release 구성으로 돌립니다 (`.github/workflows/ci.yml`). WPF가 포함돼 있어 `windows-latest` 러너를 씁니다.
 
 ---
 
 ## 프로토콜 자기검증
 
-위 자동 테스트와 별개로, 실행 중인 앱에 **밖에서 붙어** 확인하는 콘솔 클라이언트를 두었습니다.
-자동 테스트가 서버 로직을 프로세스 안에서 검증한다면, 이쪽은 실제 앱 프로세스를 상대로 종단 확인을 합니다.
+위 자동 테스트와 별개로, 실행 중인 앱에 밖에서 붙어 확인하는 콘솔 클라이언트를 두었습니다. 자동 테스트가 서버 로직을 프로세스 안에서 검증한다면, 이쪽은 실제 앱 프로세스를 상대로 종단 확인을 합니다.
 
 ```bash
 # WPF 앱을 먼저 실행하고 START를 누른 뒤
@@ -237,11 +222,10 @@ dotnet run --project OpcUaTestClient
 2. `D6~D8` Word Write 후 `D0~D2` 재독해 — 타겟 반영 확인
 3. `M100` Bit Read
 4. `D11`(XMax)을 현재 X 아래로 Write → `M100` ON 확인 (런타임 경계 변경 → 알람 유발)
-5. 읽기 전용(`D0`) / 맵 밖(`D9`) / **Bit Write(`M100`)** → 전부 `0xC059` 반환 및 상태 불변 확인
+5. 읽기 전용(`D0`) / 맵 밖(`D9`) / Bit Write(`M100`) → 전부 `0xC059` 반환 및 상태 불변 확인
 6. 쪼개진 프레임 부분 수신 → 정상 파싱 확인
 
-> 시나리오 2·4는 축이 실제로 움직여야 판정되므로 **START를 누르지 않으면 실패합니다.**
-> `SlmpServer`는 앱 기동과 동시에 리슨하지만 `VirtualPLC` 루프와 `ErrorDetector` 평가는 START 이후에만 돕니다.
+시나리오 2·4는 축이 실제로 움직여야 판정되므로 START를 누르지 않으면 실패합니다. `SlmpServer`는 앱 기동과 동시에 리슨하지만 `VirtualPLC` 루프와 `ErrorDetector` 평가는 START 이후에만 돕니다.
 
 ---
 
@@ -268,8 +252,7 @@ dotnet run --project OpcUaTestClient
 
 물리적 한계와 알람 경계는 별개입니다. 전자는 축이 물리적으로 갈 수 있는 범위(클램프), 후자는 그 안에서 경보를 울릴 기준선입니다.
 
-`MaxSpeed`와 `AlarmMaxVelocity`도 마찬가지로 짝을 이룹니다. 전자가 속도의 상한을 만들고 후자가 그 안에서 경보 기준선이 되므로,
-후자를 전자 이상으로 두면 경보는 울리지 않습니다(시작 시 경고로 통지). `MaxSpeed`가 0 이하이면 축이 멈춰버리므로 기본값 100으로 되돌립니다.
+`MaxSpeed`와 `AlarmMaxVelocity`도 마찬가지로 짝을 이룹니다. 전자가 속도의 상한을 만들고 후자가 그 안에서 경보 기준선이 되므로, 후자를 전자 이상으로 두면 경보는 울리지 않습니다(시작 시 경고로 통지). `MaxSpeed`가 0 이하이면 축이 멈춰버리므로 기본값 100으로 되돌립니다.
 
 ---
 
@@ -291,17 +274,17 @@ DigitalTwin.Dashboard/
 │   └── UnityIPCService.cs   Named Pipe 서버
 ├── ViewModels/
 │   └── MainViewModel.cs     커맨드 + 옵저버블 상태
-├── DigitalTwin.Dashboard.Tests/   xUnit 자동 테스트 (79개)
-│   ├── Slmp/                      프레임 해석기 · 워드 변환
+├── DigitalTwin.Dashboard.Tests/
+│   ├── Slmp/                프레임 해석기 · 워드 변환 테스트
 │   ├── ErrorDetectorTests.cs
 │   └── MotionTests.cs
 ├── SlmpTestClient/          실행 중인 앱 대상 프로토콜 검증 콘솔
 ├── OpcUaTestClient/
-├── .github/workflows/ci.yml CI (build + test)
+├── .github/workflows/       CI 워크플로
 └── appsettings.json
 ```
 
-네 프로젝트 전부 `DigitalTwin.Dashboard.slnx`에 등록돼 있어, 솔루션 빌드 한 번으로 모두 컴파일됩니다.
+네 프로젝트 모두 `DigitalTwin.Dashboard.slnx`에 등록돼 있어 솔루션 빌드 한 번으로 전부 컴파일됩니다.
 
 ---
 
@@ -311,9 +294,8 @@ DigitalTwin.Dashboard/
 - SLMP·OPC UA 포트가 코드에 고정돼 있습니다. `appsettings.json`으로 옮길 예정입니다.
 - OPC UA는 익명 접속만 지원하며 보안 정책(인증서, 서명·암호화)을 적용하지 않았습니다.
 - 가상 PLC는 등속 이동 모델입니다. 가감속 프로파일은 미구현입니다.
-- 제어 루프는 목표 100Hz에 도달하지 못하고 실제로는 ~64Hz로 돕니다. Windows 타이머 해상도 한계이며, 이동량·속도는 실측 경과 시간으로 보정되므로 정확도 문제는 없지만 **샘플링 밀도**는 목표의 약 2/3입니다. 진짜 100Hz가 필요하면 타이머 해상도를 올리는 별도 조치가 필요합니다.
+- 제어 루프는 목표 100Hz에 도달하지 못하고 실제로는 ~64Hz로 돕니다. Windows 타이머 해상도 한계이며, 이동량·속도는 실측 경과 시간으로 보정되므로 정확도 문제는 없지만 샘플링 밀도는 목표의 약 2/3입니다. 진짜 100Hz가 필요하면 타이머 해상도를 올리는 별도 조치가 필요합니다.
 - 기본 설정(`MaxSpeed` 100 / `AlarmMaxVelocity` 150)에서는 과속 경보가 발생하지 않습니다. 시작 시 `CONFIG_OVERSPEED_UNREACHABLE` 경고로 통지되며, 쓰려면 두 값을 조정해야 합니다.
-
 - 자동 테스트는 `Services`/`Models` 계층을 덮습니다. `MainViewModel`과 UI, `UnityIPCService`, `OpcUaServer`는 아직 자동 검증 대상이 아닙니다.
 
 ## 로드맵
