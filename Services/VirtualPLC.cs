@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DigitalTwin.Dashboard.Models;
 
 namespace DigitalTwin.Dashboard.Services
@@ -5,7 +6,14 @@ namespace DigitalTwin.Dashboard.Services
     internal class VirtualPLC
     {
         private const float MaxAccel = 500.0f;
+
+        // 목표 주기(Hz). 실제 주기는 OS 타이머 해상도(Windows 기본 ~15.6ms)에 눌려
+        // 이보다 느려질 수 있으므로, 계산에는 이 값이 아니라 실측 경과 시간을 쓴다.
         private const int UpdateRate = 100;
+
+        // deltaTime 상한(초). 디버거 정지·스레드 기아로 루프가 오래 멈춘 뒤
+        // 한 프레임에 축이 크게 순간이동하는 것을 막는다.
+        private const float MaxDeltaTime = 0.1f;
 
         private bool isRunning = false;
         private CancellationTokenSource cts;
@@ -65,14 +73,33 @@ namespace DigitalTwin.Dashboard.Services
 
         private async Task UpdateLoop(CancellationToken token)
         {
+            // 가정한 주기(1/UpdateRate)가 아니라 실제로 흐른 시간을 재서 쓴다.
+            // Task.Delay(10ms)는 OS 타이머 해상도 때문에 실제로는 ~15.6ms 걸리므로,
+            // 가정값을 쓰면 이동량과 산출 속도가 실제보다 ~1.5배 부풀려진다.
+            var clock = Stopwatch.StartNew();
+            double lastElapsed = clock.Elapsed.TotalSeconds;
+            const int periodMs = 1000 / UpdateRate;
+
             while (!token.IsCancellationRequested)
             {
                 try
                 {
+                    double frameStart = clock.Elapsed.TotalSeconds;
+                    float deltaTime = (float)(frameStart - lastElapsed);
+                    lastElapsed = frameStart;
+
+                    if (deltaTime <= 0f)
+                    {
+                        // 첫 반복(경과 0). 0으로 나누면 속도가 무한대가 되므로 목표 주기로 대체.
+                        deltaTime = 1f / UpdateRate;
+                    }
+                    else if (deltaTime > MaxDeltaTime)
+                    {
+                        deltaTime = MaxDeltaTime;
+                    }
+
                     // ① DeviceTable에서 target / 이전 current 읽기
                     var snap = _deviceTable.Snapshot();
-
-                    float deltaTime = 1f / UpdateRate;
 
                     // ② 기존 보간 로직으로 새 current 계산 (travel clamp는 여기 유지 = P1)
                     float targetX = Math.Clamp(snap.TargetX, -_xLimit, _xLimit);
@@ -83,7 +110,7 @@ namespace DigitalTwin.Dashboard.Services
                     float currentY = MoveTowards(snap.CurrentY, targetY, _maxSpeed * deltaTime);
                     float currentZ = MoveTowards(snap.CurrentZ, targetZ, _maxSpeed * deltaTime);
 
-                    // 속도 계산 (실제 이동한 거리 / 시간)
+                    // 속도 계산 (실제 이동한 거리 / 실측 경과 시간)
                     float velX = (currentX - snap.CurrentX) / deltaTime;
                     float velY = (currentY - snap.CurrentY) / deltaTime;
                     float velZ = (currentZ - snap.CurrentZ) / deltaTime;
@@ -91,10 +118,10 @@ namespace DigitalTwin.Dashboard.Services
                     // ③ DeviceTable에 current/velocity 기록
                     _deviceTable.SetCurrentAndVelocity(currentX, currentY, currentZ, velX, velY, velZ);
 
-                    // 경계 판정 (current 기록 직후, 100Hz 결정적 판정, UI 스레드 밖)
+                    // 경계 판정 (current 기록 직후, 루프 매 회차 결정적 판정, UI 스레드 밖)
                     _errorDetector.Evaluate();
 
-                    // Unity 송신 트리거 (cadence 기존 그대로 유지 = 100Hz·백그라운드, T6)
+                    // Unity 송신 트리거 (cadence 기존 그대로 유지 = 루프 1회당 1건·백그라운드, T6)
                     OnDataUpdated?.Invoke(new AxisData
                     {
                         X = currentX,
@@ -106,7 +133,11 @@ namespace DigitalTwin.Dashboard.Services
                         Timestamp = DateTime.Now
                     });
 
-                    await Task.Delay(1000 / UpdateRate, token);
+                    // 이번 프레임의 작업 시간만큼 빼고 쉰다(드리프트 보상).
+                    // OS 타이머 해상도가 하한이라 목표 100Hz에 늘 닿지는 않지만,
+                    // 남는 오차는 다음 프레임의 deltaTime이 그대로 흡수한다.
+                    int workMs = (int)((clock.Elapsed.TotalSeconds - frameStart) * 1000.0);
+                    await Task.Delay(Math.Max(1, periodMs - workMs), token);
                 }
                 catch (OperationCanceledException)
                 {

@@ -1,6 +1,6 @@
 # DigitalTwin.Dashboard
 
-픽앤플레이스 장비의 **Soft-PLC 겸 감시 대시보드**입니다. 가상 PLC 루프가 100Hz로 3축 위치·속도를 산출하고, 이를 단일 상태 저장소(`DeviceTable`)에 기록한 뒤 **SLMP 3E**, **OPC UA**, **Named Pipe** 세 갈래로 동시에 노출합니다.
+픽앤플레이스 장비의 **Soft-PLC 겸 감시 대시보드**입니다. 가상 PLC 루프가 목표 100Hz로 3축 위치·속도를 산출하고, 이를 단일 상태 저장소(`DeviceTable`)에 기록한 뒤 **SLMP 3E**, **OPC UA**, **Named Pipe** 세 갈래로 동시에 노출합니다.
 
 실제 PLC 하드웨어 없이도 상위 시스템(SCADA, MES, HMI, 3D 트윈)이 붙어 통신 검증을 할 수 있는 것이 목표입니다. 3D 시각화 클라이언트는 [DigitalTwin_PickAndPlace](https://github.com/udune/DigitalTwin_PickAndPlace) 리포에 있습니다.
 
@@ -12,7 +12,7 @@
                           ┌──────────────────────────┐
    Unity 3D ──Named Pipe──┤                          ├──→ SLMP 3E Server   :5007
                           │       DeviceTable        │     (미쓰비시 호환 D/M 디바이스)
-   VirtualPLC ────100Hz──→┤    (single source of     │
+   VirtualPLC ──~64Hz*───→┤    (single source of     │
                           │         truth)           ├──→ OPC UA Server    :4840
    ErrorDetector ←────────┤   불변 Snapshot pull     │     (opc.tcp, 19 노드)
                           │                          │
@@ -22,13 +22,16 @@
                                    WPF UI (MVVM)
 ```
 
+\* 제어 루프의 목표 주기는 100Hz지만 Windows 타이머 해상도(~15.6ms)에 눌려 실제로는 ~64Hz로 돕니다.
+이동량·속도는 이 실제 주기를 재서 계산하므로 명령한 mm/s는 그대로 지켜집니다. ([아래 참조](#가상-plc))
+
 ### 설계 원칙
 
 **1. 단일 진실(single source of truth)**
 모든 상태는 `DeviceTable` 하나에만 존재합니다. UI, Unity 송신, SLMP, OPC UA는 각자 상태를 들고 있지 않고 `Snapshot()`으로 한 시점을 통째로 복사해 갑니다. 반환값은 불변 `record struct`라 소비 측에서 필드 티어링(일부 필드만 갱신된 상태를 읽는 문제)이 발생하지 않습니다.
 
 **2. Push가 아닌 Pull**
-`DeviceTable`에는 변경 통지 이벤트가 없습니다. 100Hz로 이벤트를 뿌리면 구독자 수만큼 초당 수백 건이 UI 스레드로 쏟아지기 때문에, 소비자가 각자 필요한 주기로 당겨가는 방식을 택했습니다. 그 결과 **제어 루프 100Hz와 UI 갱신 30Hz가 완전히 분리**됩니다.
+`DeviceTable`에는 변경 통지 이벤트가 없습니다. 제어 루프 주기로 이벤트를 뿌리면 구독자 수만큼 초당 수백 건이 UI 스레드로 쏟아지기 때문에, 소비자가 각자 필요한 주기로 당겨가는 방식을 택했습니다. 그 결과 **제어 루프와 UI 갱신 30Hz가 완전히 분리**됩니다.
 
 **3. 프로토콜 어댑터는 순수 부가물**
 SLMP·OPC UA 서버는 `DeviceTable`만 참조하는 어댑터로 추가됐습니다. 기존 제어 로직은 한 줄도 수정하지 않았고, 서버를 제거해도 나머지가 그대로 동작합니다.
@@ -41,13 +44,21 @@ SLMP·OPC UA 서버는 `DeviceTable`만 참조하는 어댑터로 추가됐습�
 ## 주요 기능
 
 ### 가상 PLC
-- 100Hz 결정적 업데이트 루프 (`Task.Delay` 기반 비동기)
+- 목표 100Hz 업데이트 루프 (`Task.Delay` 기반 비동기)
 - `MoveTowards` 등속 보간, 최대 속도 `MaxSpeed` 설정값 (기본 100mm/s)
 - 물리적 이동 한계(travel clamp)와 알람 경계를 분리해 관리
 - 실제 이동 거리로부터 속도 역산
 
+**루프 주기는 목표치이지 보장치가 아닙니다.** Windows 기본 타이머 해상도가 약 15.6ms라
+`Task.Delay(10)`는 실제로 ~15.5ms 걸리고, 루프는 100Hz가 아니라 **약 64Hz**로 돕니다
+(이 리포 개발 환경 실측: 64.5Hz / 평균 주기 15.51ms).
+그래서 이동량과 속도는 가정한 주기(1/100초)가 아니라 `Stopwatch`로 잰 **실제 경과 시간**으로 계산합니다.
+가정값을 쓰면 명령 속도 100mm/s가 실제로는 ~64mm/s로 움직이면서 화면에는 100으로 표시되는
+1.55배 부풀림이 생기고, 사이클 타임 통계도 같이 틀어집니다.
+루프가 오래 멈췄다 재개할 때 축이 순간이동하지 않도록 경과 시간은 100ms로 상한을 둡니다.
+
 ### 오류 감지
-100Hz 루프가 위치를 기록한 직후 UI 스레드 밖에서 판정합니다. 같은 오류는 기본 30초 간격으로만 재기록되며, 이 간격은 UI 슬라이더로 조정할 수 있습니다.
+제어 루프가 위치를 기록한 직후 매 회차 UI 스레드 밖에서 판정합니다. 같은 오류는 기본 30초 간격으로만 재기록되며, 이 간격은 UI 슬라이더로 조정할 수 있습니다.
 
 | 오류 | 조건 | 레벨 | 코드 |
 |---|---|---|---|
@@ -133,7 +144,7 @@ Unity 3D 뷰어와의 양방향 JSON 채널입니다.
 
 | 방향 | 타입 | 내용 |
 |---|---|---|
-| → Unity | `axis_data` | 위치·속도·타임스탬프 (100Hz) |
+| → Unity | `axis_data` | 위치·속도·타임스탬프 (제어 루프 매 회차, 실측 ~64Hz) |
 | → Unity | `error` | 알람 발생 (source, level, message) |
 | → Unity | `clear_all_errors` | 알람 일괄 해제 |
 | ← Unity | `axis_data` | 키보드 조작 결과를 타겟으로 반영 (last-writer-wins) |
@@ -164,7 +175,7 @@ dotnet run
 ```
 
 앱이 뜨면 SLMP(5007)·OPC UA(4840) 서버는 즉시 리슨을 시작합니다.
-**`START`를 눌러야** 가상 PLC 100Hz 루프와 Named Pipe 서버가 가동됩니다.
+**`START`를 눌러야** 가상 PLC 제어 루프와 Named Pipe 서버가 가동됩니다.
 
 | 버튼 | 동작 |
 |---|---|
@@ -236,7 +247,7 @@ DigitalTwin.Dashboard/
 │   └── SystemStatus.cs      시스템 가동 상태
 ├── Services/
 │   ├── DeviceTable.cs       단일 진실 + 불변 스냅샷
-│   ├── VirtualPLC.cs        100Hz 제어 루프
+│   ├── VirtualPLC.cs        제어 루프 (목표 100Hz, 실측 경과 시간 기반)
 │   ├── ErrorDetector.cs     경계 판정 및 알람 생성
 │   ├── SlmpServer.cs        SLMP 3E 프레임 서버
 │   ├── OpcUaServer.cs       OPC UA 서버 + 노드 매니저
@@ -256,6 +267,7 @@ DigitalTwin.Dashboard/
 - SLMP·OPC UA 포트가 코드에 고정돼 있습니다. `appsettings.json`으로 옮길 예정입니다.
 - OPC UA는 익명 접속만 지원하며 보안 정책(인증서, 서명·암호화)을 적용하지 않았습니다.
 - 가상 PLC는 등속 이동 모델입니다. 가감속 프로파일은 미구현입니다.
+- 제어 루프는 목표 100Hz에 도달하지 못하고 실제로는 ~64Hz로 돕니다. Windows 타이머 해상도 한계이며, 이동량·속도는 실측 경과 시간으로 보정되므로 정확도 문제는 없지만 **샘플링 밀도**는 목표의 약 2/3입니다. 진짜 100Hz가 필요하면 타이머 해상도를 올리는 별도 조치가 필요합니다.
 - 기본 설정(`MaxSpeed` 100 / `AlarmMaxVelocity` 150)에서는 과속 경보가 발생하지 않습니다. 시작 시 `CONFIG_OVERSPEED_UNREACHABLE` 경고로 통지되며, 쓰려면 두 값을 조정해야 합니다.
 
 ## 로드맵
