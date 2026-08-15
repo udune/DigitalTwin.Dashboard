@@ -150,7 +150,8 @@ namespace DigitalTwin.Dashboard.Services
             }
         }
 
-        private float MoveTowards(float current, float target, float maxDelta)
+        // 인스턴스 상태를 쓰지 않는 순수 함수. 단위 테스트에서 직접 호출할 수 있게 internal static.
+        internal static float MoveTowards(float current, float target, float maxDelta)
         {
             if (Math.Abs(target - current) <= maxDelta)
             {

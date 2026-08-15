@@ -8,6 +8,12 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <!-- 서비스·모델이 전부 internal이라, 테스트 어셈블리에만 내부 접근을 연다.
+       구조를 바꾸지 않고 단위 테스트를 붙이기 위한 최소한의 조치다. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DigitalTwin.Dashboard.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.0-rc5.2" />
@@ -18,9 +24,13 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
-  <!-- 자기검증용 콘솔 클라이언트(SLMP/OPC UA)는 별도 프로젝트다.
+  <!-- 하위 디렉터리의 별도 프로젝트(테스트 프로젝트, 자기검증용 콘솔 클라이언트)는
        WPF 프로젝트의 기본 .cs 글로빙에 끌려들어가지 않게 제외한다. -->
   <ItemGroup>
+    <Compile Remove="DigitalTwin.Dashboard.Tests\**" />
+    <EmbeddedResource Remove="DigitalTwin.Dashboard.Tests\**" />
+    <None Remove="DigitalTwin.Dashboard.Tests\**" />
+    <Page Remove="DigitalTwin.Dashboard.Tests\**" />
     <Compile Remove="SlmpTestClient\**" />
     <EmbeddedResource Remove="SlmpTestClient\**" />
     <None Remove="SlmpTestClient\**" />

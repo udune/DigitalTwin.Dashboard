@@ -1,5 +1,7 @@
 # DigitalTwin.Dashboard
 
+[![CI](https://github.com/udune/DigitalTwin.Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/udune/DigitalTwin.Dashboard/actions/workflows/ci.yml)
+
 픽앤플레이스 장비의 **Soft-PLC 겸 감시 대시보드**입니다. 가상 PLC 루프가 목표 100Hz로 3축 위치·속도를 산출하고, 이를 단일 상태 저장소(`DeviceTable`)에 기록한 뒤 **SLMP 3E**, **OPC UA**, **Named Pipe** 세 갈래로 동시에 노출합니다.
 
 실제 PLC 하드웨어 없이도 상위 시스템(SCADA, MES, HMI, 3D 트윈)이 붙어 통신 검증을 할 수 있는 것이 목표입니다. 3D 시각화 클라이언트는 [DigitalTwin_PickAndPlace](https://github.com/udune/DigitalTwin_PickAndPlace) 리포에 있습니다.
@@ -192,9 +194,36 @@ dotnet run
 
 ---
 
+## 테스트
+
+```bash
+dotnet test DigitalTwin.Dashboard.slnx
+```
+
+**79개 테스트**가 자동으로 돕니다. 앱을 띄우거나 버튼을 누를 필요는 없습니다.
+
+| 파일 | 대상 | 다루는 내용 |
+|---|---|---|
+| `Slmp/SlmpProtocolTests.cs` | SLMP 프레임 해석기 | 정상 요청(워드/비트 읽기·쓰기), 쪼개져 온 데이터, 맵 밖·읽기 전용 주소, 잘못된 명령·디바이스 코드, 점 수 범위 |
+| `Slmp/WordConversionTests.cs` | float ↔ 워드 변환 | ×10 스케일, 반올림, **`short` 범위를 넘는 값의 클램프**(래핑 방지) |
+| `ErrorDetectorTests.cs` | 오류 감지기 | 경계선 안/밖, 축별 플래그, 안전 높이, 과속, **같은 경보 반복 억제** |
+| `MotionTests.cs` | 위치 계산 | **목표를 지나치지 않음**(오버슈트 금지), 설정 주입, 루프가 명령한 속도로 도는지 |
+
+SLMP 테스트는 서버를 빈 포트에 띄우고 **실제 TCP로** 말을 겁니다. 파서를 리플렉션으로 끄집어내는 대신
+`ProcessFrame` → `BuildResponse` → 부분 수신 재조립까지 와이어 그대로 한 번에 검증하기 위해서입니다.
+서비스·모델이 전부 `internal`이라, 테스트 어셈블리에만 `InternalsVisibleTo`로 접근을 열었습니다.
+
+### CI
+
+`main` 대상 push/PR마다 GitHub Actions가 `restore → build → test`를 Release 구성으로 돌립니다
+(`.github/workflows/ci.yml`). WPF가 포함돼 있어 `windows-latest` 러너를 씁니다.
+
+---
+
 ## 프로토콜 자기검증
 
-프로토콜 구현이 실제로 표준을 만족하는지 확인하는 콘솔 클라이언트를 별도 프로젝트로 두었습니다. 데모가 아니라 PASS/FAIL을 집계하는 검증 하네스입니다.
+위 자동 테스트와 별개로, 실행 중인 앱에 **밖에서 붙어** 확인하는 콘솔 클라이언트를 두었습니다.
+자동 테스트가 서버 로직을 프로세스 안에서 검증한다면, 이쪽은 실제 앱 프로세스를 상대로 종단 확인을 합니다.
 
 ```bash
 # WPF 앱을 먼저 실행하고 START를 누른 뒤
@@ -262,10 +291,17 @@ DigitalTwin.Dashboard/
 │   └── UnityIPCService.cs   Named Pipe 서버
 ├── ViewModels/
 │   └── MainViewModel.cs     커맨드 + 옵저버블 상태
-├── SlmpTestClient/          프로토콜 검증 콘솔
+├── DigitalTwin.Dashboard.Tests/   xUnit 자동 테스트 (79개)
+│   ├── Slmp/                      프레임 해석기 · 워드 변환
+│   ├── ErrorDetectorTests.cs
+│   └── MotionTests.cs
+├── SlmpTestClient/          실행 중인 앱 대상 프로토콜 검증 콘솔
 ├── OpcUaTestClient/
+├── .github/workflows/ci.yml CI (build + test)
 └── appsettings.json
 ```
+
+네 프로젝트 전부 `DigitalTwin.Dashboard.slnx`에 등록돼 있어, 솔루션 빌드 한 번으로 모두 컴파일됩니다.
 
 ---
 
@@ -278,8 +314,11 @@ DigitalTwin.Dashboard/
 - 제어 루프는 목표 100Hz에 도달하지 못하고 실제로는 ~64Hz로 돕니다. Windows 타이머 해상도 한계이며, 이동량·속도는 실측 경과 시간으로 보정되므로 정확도 문제는 없지만 **샘플링 밀도**는 목표의 약 2/3입니다. 진짜 100Hz가 필요하면 타이머 해상도를 올리는 별도 조치가 필요합니다.
 - 기본 설정(`MaxSpeed` 100 / `AlarmMaxVelocity` 150)에서는 과속 경보가 발생하지 않습니다. 시작 시 `CONFIG_OVERSPEED_UNREACHABLE` 경고로 통지되며, 쓰려면 두 값을 조정해야 합니다.
 
+- 자동 테스트는 `Services`/`Models` 계층을 덮습니다. `MainViewModel`과 UI, `UnityIPCService`, `OpcUaServer`는 아직 자동 검증 대상이 아닙니다.
+
 ## 로드맵
 
+- [ ] `UnityIPCService` 재연결 시나리오 자동 테스트 (현재 육안 검증)
 - [ ] 대시보드 Pick/Place 제어 UI
 - [ ] 실제 미쓰비시 PLC 연동 (SLMP 클라이언트 모드)
 - [ ] OPC UA 보안 정책 및 사용자 인증

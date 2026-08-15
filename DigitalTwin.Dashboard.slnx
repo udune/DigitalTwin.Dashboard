@@ -1,3 +1,6 @@
 <Solution>
   <Project Path="DigitalTwin.Dashboard.csproj" />
+  <Project Path="DigitalTwin.Dashboard.Tests/DigitalTwin.Dashboard.Tests.csproj" />
+  <Project Path="SlmpTestClient/SlmpTestClient.csproj" />
+  <Project Path="OpcUaTestClient/OpcUaTestClient.csproj" />
 </Solution>
