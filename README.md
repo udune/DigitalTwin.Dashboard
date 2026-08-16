@@ -24,6 +24,40 @@ PLC 하드웨어 없이도 상위 시스템(SCADA, MES, HMI, 3D 트윈)이 붙�
 
 \* 제어 루프의 목표 주기는 100Hz인데 Windows 타이머 해상도(~15.6ms)에 눌려 실제로는 ~64Hz로 돕니다. 뒤에 따로 적었습니다.
 
+```mermaid
+flowchart LR
+    UI["WPF 조작 패널"]
+    UNITY_IN["Unity 3D<br/>키보드 조작"]
+    NORTH["SCADA / MES<br/>SLMP · OPC UA 쓰기"]
+
+    DT[("DeviceTable<br/>단일 진실<br/>lock + 불변 Snapshot")]
+
+    PLC["VirtualPLC<br/>100Hz 제어 루프"]
+    ED["ErrorDetector<br/>경계 판정"]
+
+    SLMP["SLMP 3E 서버<br/>TCP :5007"]
+    OPC["OPC UA 서버<br/>opc.tcp :4840"]
+    PIPE["Named Pipe<br/>DigitalTwinPipe"]
+    VIEW["WPF 화면<br/>30Hz 폴링"]
+
+    UI -->|SetTarget| DT
+    UNITY_IN -->|axis_data 수신| DT
+    NORTH -->|"D6~D8 / TargetX~Z"| DT
+
+    DT -->|Snapshot| PLC
+    PLC -->|"current · velocity"| DT
+    PLC --> ED
+    ED -->|에러 플래그| DT
+
+    DT --> SLMP
+    DT --> OPC
+    DT --> VIEW
+    PLC -->|100Hz 송신| PIPE
+
+    style DT fill:#1f3a5f,stroke:#4a9eff,stroke-width:3px,color:#fff
+    style PLC fill:#3d2f1f,stroke:#d4913a,color:#fff
+```
+
 ## 상태는 한 곳에만 둔다
 
 만들면서 제일 신경 쓴 규칙입니다. 모든 상태는 `DeviceTable` 하나에만 있고, UI든 Unity 송신이든 SLMP든 OPC UA든 자기 상태를 따로 들지 않습니다. 필요할 때 `Snapshot()`으로 한 시점을 통째로 복사해 갑니다. 반환값이 불변 `record struct`라서 소비하는 쪽에서 필드 티어링(일부 필드만 갱신된 어정쩡한 상태를 읽는 문제)이 생기지 않습니다.
@@ -138,6 +172,34 @@ Unity 뷰어와 주고받는 줄 단위 JSON 채널입니다.
 오류의 식별자는 `code`(`X_LIMIT`, `Z_SAFE_HEIGHT`, `X_OVERSPEED` 등)입니다. Unity가 이 값을 그대로 오류 Id로 쓰고, `error_clear`가 같은 코드를 지목해 그 오류 하나만 거둡니다. `code`가 없거나 `source`/`errorType`이 모르는 값이면 Unity는 경고 로그만 남기고 버립니다. 예전에는 모르는 값을 기본값으로 삼켰는데, 그러다 축이 아닌 `SYSTEM` 알람이 X축 오류로 둔갑해 카메라가 엉뚱한 데를 비추는 일이 있었습니다.
 
 파이프는 반드시 양방향(`PipeDirection.InOut`)으로 열어야 합니다. 한쪽 방향으로 열면 연결 자체가 깨집니다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant AM as AxisMover<br/>(Unity)
+    participant IPC as IPCReceiver<br/>(Unity)
+    participant US as UnityIPCService<br/>(Dashboard)
+    participant DT as DeviceTable
+    participant PLC as VirtualPLC
+    participant PC as PickAndPlaceController<br/>(Unity)
+
+    Note over AM: → 키 누름, mm 단위로 계산
+    AM->>IPC: SendAxisData(x, y, z) — mm
+    IPC->>US: {"type":"axis_data"} JSON 한 줄
+    US->>DT: SetTarget(x, y, z)
+    Note over DT: 목표만 갱신 (last-writer-wins)
+
+    loop 100Hz 제어 루프
+        PLC->>DT: Snapshot()
+        Note over PLC: MoveTowards, 최대 100mm/s
+        PLC->>DT: SetCurrentAndVelocity()
+        PLC->>IPC: axis_data (현재 위치) — mm
+    end
+
+    IPC->>PC: MoveToPosition(x, y, z) — mm
+    Note over PC: ÷100 → Unity 단위<br/>X→x, Y→z(전후), Z→y(상하)
+    PC->>PC: Lerp로 3D 모델 이동
+```
 
 ## 빌드와 실행
 
