@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    # WPF(net10.0-windows) 프로젝트가 솔루션에 있어 Windows 러너가 필요하다.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore DigitalTwin.Dashboard.slnx
+
+      - name: Build
+        run: dotnet build DigitalTwin.Dashboard.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test DigitalTwin.Dashboard.slnx
+          --configuration Release
+          --no-build
+          --verbosity normal
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./TestResults
+          if-no-files-found: ignore

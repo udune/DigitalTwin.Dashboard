@@ -150,6 +150,7 @@ namespace DigitalTwin.Dashboard.ViewModels
 
             _errorDetector = new ErrorDetector(_deviceTable, config);
             _errorDetector.OnErrorDetected += ErrorDetector_OnErrorDetected;
+            _errorDetector.OnErrorCleared += ErrorDetector_OnErrorCleared;
             _errorDetector.SetCheckInterval(_checkInterval);
 
             _unityIPC = new UnityIPCService(_deviceTable);
@@ -534,6 +535,13 @@ namespace DigitalTwin.Dashboard.ViewModels
             _unityIPC.SendError(alarm);
         }
 
+        // 조건이 해소되면 Unity가 표시를 거두게 한다.
+        // 대시보드 알람 목록은 이력이므로 지우지 않는다(발생 사실은 남는다).
+        private void ErrorDetector_OnErrorCleared(string code)
+        {
+            _unityIPC.SendErrorClear(code);
+        }
+
         #endregion
 
         #region Slider Trigger
@@ -561,6 +569,7 @@ namespace DigitalTwin.Dashboard.ViewModels
             if (_errorDetector != null)
             {
                 _errorDetector.OnErrorDetected -= ErrorDetector_OnErrorDetected;
+                _errorDetector.OnErrorCleared -= ErrorDetector_OnErrorCleared;
             }
 
             if (_unityIPC != null)

@@ -329,6 +329,125 @@ namespace DigitalTwin.Dashboard.Tests
             Assert.Equal("Error|X_AXIS|X_LIMIT", Assert.Single(alarms).GetGroupKey());
         }
 
+        // ── 조건 해제 ──
+        // 오류 판정의 단일 기준이 대시보드이므로, 조건이 풀렸다는 사실도 여기서만 알릴 수 있다.
+        // 이 통보가 없으면 Unity 뷰어는 오류 표시를 영원히 들고 있게 된다.
+
+        [Fact]
+        public void 위반이_해소되면_해제가_통보된다()
+        {
+            var (table, detector, _) = Build();
+            var cleared = new List<string>();
+            detector.OnErrorCleared += cleared.Add;
+
+            table.SetCurrentAndVelocity(200f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+            Assert.Empty(cleared);
+
+            table.SetCurrentAndVelocity(0f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+
+            Assert.Equal("X_LIMIT", Assert.Single(cleared));
+        }
+
+        [Fact]
+        public void 위반이_계속되는_동안에는_해제가_없다()
+        {
+            var (table, detector, _) = Build();
+            var cleared = new List<string>();
+            detector.OnErrorCleared += cleared.Add;
+
+            table.SetCurrentAndVelocity(200f, 0f, -10f, 0f, 0f, 0f);
+
+            for (int i = 0; i < 10; i++)
+            {
+                detector.Evaluate();
+            }
+
+            Assert.Empty(cleared);
+        }
+
+        [Fact]
+        public void 억제창에_걸려_알람이_안_나가도_해제는_한번_통보된다()
+        {
+            var (table, detector, alarms) = Build();
+            var cleared = new List<string>();
+            detector.OnErrorCleared += cleared.Add;
+            detector.SetCheckInterval(30.0);
+
+            table.SetCurrentAndVelocity(200f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+            detector.Evaluate(); // 억제창 안 — 알람은 안 나가지만 조건은 성립 중
+            Assert.Single(alarms);
+            Assert.Empty(cleared);
+
+            table.SetCurrentAndVelocity(0f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+            detector.Evaluate(); // 이미 해제된 조건을 두 번 통보하지 않는다
+
+            Assert.Equal("X_LIMIT", Assert.Single(cleared));
+        }
+
+        [Fact]
+        public void 해제된_조건이_재발하면_억제창을_기다리지_않는다()
+        {
+            var (table, detector, alarms) = Build();
+            detector.SetCheckInterval(30.0);
+
+            table.SetCurrentAndVelocity(200f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+            Assert.Single(alarms);
+
+            table.SetCurrentAndVelocity(0f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate(); // 해제
+
+            table.SetCurrentAndVelocity(200f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate(); // 새 사건이므로 즉시 다시 알린다
+
+            Assert.Equal(2, alarms.Count);
+        }
+
+        [Fact]
+        public void 여러_조건은_각각_따로_해제된다()
+        {
+            var (table, detector, _) = Build();
+            var cleared = new List<string>();
+            detector.OnErrorCleared += cleared.Add;
+
+            table.SetCurrentAndVelocity(200f, 200f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+
+            // X만 정상으로 되돌린다
+            table.SetCurrentAndVelocity(0f, 200f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+            Assert.Equal("X_LIMIT", Assert.Single(cleared));
+
+            table.SetCurrentAndVelocity(0f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+
+            Assert.Equal(new[] { "X_LIMIT", "Y_LIMIT" }, cleared);
+        }
+
+        [Fact]
+        public void 설정경고는_조건해제_대상이_아니다()
+        {
+            var config = Config();
+            config.MaxSpeed = 100f;
+            config.AlarmMaxVelocity = 150f; // 도달 불가 조합
+            var (table, detector, alarms) = Build(config);
+            var cleared = new List<string>();
+            detector.OnErrorCleared += cleared.Add;
+
+            detector.ValidateConfiguration();
+            Assert.Equal("CONFIG_OVERSPEED_UNREACHABLE", Assert.Single(alarms).Code);
+
+            // 일회성 알람이므로 이후 정상 판정에 휩쓸려 해제되면 안 된다.
+            table.SetCurrentAndVelocity(0f, 0f, -10f, 0f, 0f, 0f);
+            detector.Evaluate();
+
+            Assert.Empty(cleared);
+        }
+
         [Fact]
         public void 런타임에_경계를_좁히면_같은_위치가_위반이_된다()
         {

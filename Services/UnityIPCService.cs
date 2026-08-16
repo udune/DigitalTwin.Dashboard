@@ -225,24 +225,39 @@ namespace DigitalTwin.Dashboard.Services
             }
         });
 
+        // code는 Unity가 오류를 식별하는 Id다. error_clear가 같은 code를 보내 해제하므로
+        // 양쪽이 같은 키를 봐야 한다. Unity는 code가 비면 메시지를 무시한다.
         public void SendError(AlarmData alarm) => SendMessage(new
         {
             type = "error",
+            code = alarm.Code,                        // "X_LIMIT" 등 — 오류 식별자
             source = ToUnitySource(alarm.Location),  // "X_AXIS" → "XAxis"
             errorType = alarm.Level,                  // "Error"/"Warning" (값은 그대로 일치)
             message = alarm.Message,
             timestamp = alarm.Time.ToString("o")
         });
 
+        // 조건이 해소됐을 때 해당 오류 하나만 거두게 한다.
+        // 이게 없으면 Unity는 clear_all_errors 전까지 오류 표시를 영원히 들고 있는다.
+        public void SendErrorClear(string code) => SendMessage(new
+        {
+            type = "error_clear",
+            code,
+            timestamp = DateTime.Now.ToString("o")
+        });
+
         public void SendClearError() => SendMessage(new { type = "clear_all_errors" });
 
         // AlarmData.Location("X_AXIS") → Unity ParseErrorSource가 받는 형식("XAxis")으로 변환.
         // (ErrorDetector 내부의 Location 문자열은 dedup 키·UI에 쓰이므로 건드리지 않고, 송신 경계에서만 변환)
+        // 축이 아닌 위치(SYSTEM)도 반드시 매핑한다 — Unity는 모르는 source를 무시하므로
+        // 빠뜨리면 해당 알람이 뷰어에서 조용히 사라진다.
         private static string ToUnitySource(string location) => location switch
         {
             "X_AXIS" => "XAxis",
             "Y_AXIS" => "YAxis",
             "Z_AXIS" => "ZAxis",
+            "SYSTEM" => "System",
             _ => location
         };
 
