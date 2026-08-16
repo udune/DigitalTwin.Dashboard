@@ -110,23 +110,23 @@ namespace DigitalTwin.Dashboard.Tests
 
         // ── 루프 통합: 실제로 명령한 속도만큼 움직이는가 ──
 
-        // 벽시계로 실제 이동 속도를 재는 구간 길이. 루프 한 회차(~15.5ms)의 양자화 오차가
-        // 이 창 안에서 6mm/s 수준으로 희석되므로, 정상(~100)과 고정 dt 버그(~64)가 확실히 갈린다.
-        private const double SpeedWindowSeconds = 0.25;
-
         [Fact]
         public async Task 루프는_명령한_속도로_움직이고_목표에서_멈춘다()
         {
             // 고정 dt(1/100초)를 가정하면 실제 루프는 ~64Hz라 이동이 1.5배 느려진다.
-            // 실측 경과 시간을 쓰는지 벽시계로 확인한다.
+            // 실측 경과 시간을 쓰는지 확인하는 테스트다.
             //
-            // 총 소요 시간으로 재면 안 된다. 루프 스레드가 늦게 깨어나면(부하가 걸린 CI 러너)
-            // dt 상한(100ms)에 걸려 이동이 벽시계보다 뒤처지는데, 이건 고정 dt 버그와 방향이
-            // 같아서 둘을 구분할 수 없다. 그래서 '가장 잘 돈 구간의 속도'를 본다.
+            // 계측을 테스트 스레드에서 하면 안 된다. 총 소요 시간으로 재면 루프가 늦게 깨어난
+            // 만큼(부하 걸린 CI 러너) 시간이 늘어 고정 dt 버그와 구분되지 않고, 표본을 찍어
+            // 재면 위치를 읽은 시점과 시각을 찍은 시점이 벌어져 속도가 되레 부풀려진다.
+            // 그래서 위치를 계산한 자리에서 루프가 직접 찍어 보내는 (Timestamp, X)만 쓴다.
             var config = new DeviceConfig { MaxSpeed = 100f, AlarmMaxVelocity = 1000f };
             var table = new DeviceTable(config);
             var detector = new ErrorDetector(table, config);
             var plc = new VirtualPLC(table, detector, config);
+
+            var ticks = new System.Collections.Concurrent.ConcurrentQueue<(DateTime Time, float X)>();
+            plc.OnDataUpdated += data => ticks.Enqueue((data.Timestamp, data.X));
 
             await plc.Start();
             try
@@ -134,13 +134,11 @@ namespace DigitalTwin.Dashboard.Tests
                 var clock = System.Diagnostics.Stopwatch.StartNew();
                 table.SetTarget(100f, 0f, 0f); // 100mm @ 100mm/s = 이론 1.00초
 
-                var samples = new List<(double Time, float X)>();
                 bool reached = false;
 
                 while (clock.Elapsed.TotalSeconds < 5.0)
                 {
                     float x = table.Snapshot().CurrentX;
-                    samples.Add((clock.Elapsed.TotalSeconds, x));
 
                     Assert.True(x <= 100f + 0.001f, $"목표를 지나쳤습니다: {x}");
 
@@ -155,8 +153,8 @@ namespace DigitalTwin.Dashboard.Tests
                 Assert.True(reached, $"5초 안에 목표에 도달하지 못했습니다: {table.Snapshot().CurrentX}mm");
                 Assert.Equal(100f, table.Snapshot().CurrentX, 2);
 
-                // 이론 100mm/s. 고정 dt였다면 어느 구간을 봐도 ~64mm/s를 넘지 못한다.
-                Assert.InRange(PeakSpeed(samples), 85.0, 115.0);
+                // 이론 100mm/s. 고정 dt였다면 회차마다 ~64mm/s가 나온다.
+                Assert.InRange(MedianTickSpeed(ticks.ToArray()), 85.0, 115.0);
             }
             finally
             {
@@ -164,27 +162,30 @@ namespace DigitalTwin.Dashboard.Tests
             }
         }
 
-        // SpeedWindowSeconds 이상 떨어진 두 표본으로 잰 구간 속도 중 최댓값.
-        // 스레드가 굶은 구간은 느리게 나오지만, 정상적으로 돈 구간이 하나라도 있으면 잡힌다.
-        private static double PeakSpeed(List<(double Time, float X)> samples)
+        // 루프 회차 사이의 이동 속도들 중 중앙값.
+        // 스레드가 굶어 dt 상한에 걸린 회차는 느리게, 그 직후 회차는 빠르게 나오는데
+        // 둘 다 소수라서 중앙값은 흔들리지 않는다. 평균이나 최댓값은 이 양쪽에 끌려간다.
+        private static double MedianTickSpeed(IReadOnlyList<(DateTime Time, float X)> ticks)
         {
-            double peak = 0.0;
+            var speeds = new List<double>();
 
-            for (int i = 0; i < samples.Count; i++)
+            for (int i = 1; i < ticks.Count; i++)
             {
-                for (int j = i + 1; j < samples.Count; j++)
-                {
-                    double span = samples[j].Time - samples[i].Time;
-                    if (span < SpeedWindowSeconds)
-                    {
-                        continue;
-                    }
+                double seconds = (ticks[i].Time - ticks[i - 1].Time).TotalSeconds;
+                double moved = ticks[i].X - ticks[i - 1].X;
 
-                    peak = Math.Max(peak, (samples[j].X - samples[i].X) / span);
+                if (seconds <= 0 || moved <= 0)
+                {
+                    continue; // 아직 안 움직였거나 이미 목표에 선 회차
                 }
+
+                speeds.Add(moved / seconds);
             }
 
-            return peak;
+            Assert.NotEmpty(speeds);
+            speeds.Sort();
+
+            return speeds[speeds.Count / 2];
         }
 
         [Fact]
