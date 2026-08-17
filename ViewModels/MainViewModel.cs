@@ -31,6 +31,9 @@ namespace DigitalTwin.Dashboard.ViewModels
         private DispatcherTimer _clockTimer;
         private DispatcherTimer _vmUpdateTimer;
 
+        // Initialize()가 서버·타이머를 두 번 켜지 않도록 하는 표시
+        private bool _isInitialized;
+
         // Cycle Tracking
         private bool _wasAtBottom = false;
         private DateTime _cycleStartTime;
@@ -123,26 +126,14 @@ namespace DigitalTwin.Dashboard.ViewModels
 
         #endregion
 
-        public MainViewModel()
+        // 생성자는 배선만 한다 — 파일 I/O도, 소켓도, 타이머도 여기서 시작하지 않는다.
+        // 부수효과는 전부 Initialize()로 모았으므로, 테스트는 이 객체를 그냥 만들 수 있다.
+        // 설정은 호출자가 DeviceConfig.Load()로 읽어 넣는다(읽기 실패 사유는 configWarning).
+        public MainViewModel(DeviceConfig config, string? configWarning = null)
         {
-            // Load DeviceConfig
-            DeviceConfig config = new DeviceConfig();
-            try
+            if (configWarning != null)
             {
-                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
-                if (File.Exists(configPath))
-                {
-                    string json = File.ReadAllText(configPath);
-                    var loadedConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<DeviceConfig>(json);
-                    if (loadedConfig != null)
-                    {
-                        config = loadedConfig;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _statusMessage = $"설정 파일 로드 실패: {ex.Message}";
+                _statusMessage = configWarning;
                 _statusMessageBrush = new SolidColorBrush(Colors.Yellow);
             }
 
@@ -163,21 +154,31 @@ namespace DigitalTwin.Dashboard.ViewModels
             _virtualPLC.OnDataUpdated += VirtualPLC_OnDataUpdated;
 
             // SLMP 3E 서버: 기존 주입 뒤에 추가되는 순수 어댑터. 같은 DeviceTable만 경유한다.
-            // Named Pipe·UI·30Hz 폴링과 동시에 :5007에서 리슨한다.
-            _slmp = new SlmpServer(_deviceTable, 5007);
+            // Named Pipe·UI·30Hz 폴링과 동시에 설정된 포트(기본 5007)에서 리슨한다.
+            _slmp = new SlmpServer(_deviceTable, config.SlmpPort);
             _slmp.OnError += SlmpServer_OnError;
-            _slmp.Start();
 
             // OPC UA 서버: SLMP 바로 뒤에 동일 패턴으로 추가되는 북향 게이트웨이.
-            // 같은 DeviceTable을 백킹으로 공유한다(단일 진실). opc.tcp://localhost:4840.
-            // OPC UA 서버: SLMP 바로 뒤에 동일 패턴으로 추가되는 북향 게이트웨이.
-            // 같은 DeviceTable을 백킹으로 공유한다(단일 진실). opc.tcp://localhost:4840.
-            _opcua = new OpcUaServer(_deviceTable, 4840);
+            // 같은 DeviceTable을 백킹으로 공유한다(단일 진실). opc.tcp://localhost:<OpcUaPort>.
+            _opcua = new OpcUaServer(_deviceTable, config.OpcUaPort);
             _opcua.OnError += OpcUaServer_OnError;
-            _opcua.Start();
 
             _alarms = new ObservableCollection<AlarmData>();
             _alarms.CollectionChanged += (s, e) => OnPropertyChanged(nameof(IsExportEnabled));
+        }
+
+        // 생성자에서 분리한 부수효과. 앱이 뜰 때 MainWindow가 한 번 호출한다.
+        // SLMP·OPC UA는 종전대로 START 없이 곧바로 리슨한다(자동 기동 유지).
+        public void Initialize()
+        {
+            if (_isInitialized)
+            {
+                return;
+            }
+            _isInitialized = true;
+
+            _slmp.Start();
+            _opcua.Start();
 
             // 알람 목록이 준비된 뒤 1회 점검: 과속 임계가 최고 속도 이상이면
             // 그 경보는 절대 발생하지 않으므로 시작 시 경고로 드러낸다.

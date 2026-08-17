@@ -31,11 +31,16 @@ namespace DigitalTwin.Dashboard
         {
             InitializeComponent();
 
-            _viewModel = new MainViewModel();
+            // 설정 읽기는 뷰모델 밖에서 한다. 실패해도 기본값으로 뜨고 사유만 상태줄에 남는다.
+            var config = DeviceConfig.Load(null, out string? configWarning);
+            _viewModel = new MainViewModel(config, configWarning);
             DataContext = _viewModel;
 
             InitializeChart();
             InitializeTimers();
+
+            // 서버·타이머 기동. 생성자에서 분리했을 뿐 시점은 종전과 같다(창이 뜰 때 자동).
+            _viewModel.Initialize();
 
             Closing += MainWindow_Closing;
         }

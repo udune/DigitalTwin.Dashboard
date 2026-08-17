@@ -211,7 +211,9 @@ cd DigitalTwin.Dashboard
 dotnet run
 ```
 
-앱이 뜨면 SLMP(5007)와 OPC UA(4840)는 바로 리슨을 시작합니다. 다만 가상 PLC 제어 루프와 Named Pipe 서버는 `START`를 눌러야 돕니다.
+앱이 뜨면 SLMP(기본 5007)와 OPC UA(기본 4840)는 바로 리슨을 시작합니다. 포트는 `appsettings.json`에서 바꿉니다. 다만 가상 PLC 제어 루프와 Named Pipe 서버는 `START`를 눌러야 돕니다.
+
+기동 자체는 `MainWindow`가 `MainViewModel.Initialize()`를 한 번 부르는 것으로 일어납니다. 뷰모델 생성자는 배선만 하고 파일도 소켓도 건드리지 않으므로, 테스트에서 뷰모델을 만들어도 포트가 잡히지 않습니다.
 
 | 버튼 | 동작 |
 |---|---|
@@ -227,7 +229,7 @@ dotnet run
 dotnet test DigitalTwin.Dashboard.slnx
 ```
 
-85개가 자동으로 돕니다. 앱을 띄우거나 버튼을 누를 필요는 없습니다.
+94개가 자동으로 돕니다. 앱을 띄우거나 버튼을 누를 필요는 없습니다.
 
 | 파일 | 대상 | 다루는 내용 |
 |---|---|---|
@@ -235,6 +237,8 @@ dotnet test DigitalTwin.Dashboard.slnx
 | `Slmp/WordConversionTests.cs` | float ↔ 워드 변환 | ×10 스케일, 반올림, `short` 범위를 넘는 값의 클램프(래핑 방지) |
 | `ErrorDetectorTests.cs` | 오류 감지기 | 경계선 안/밖, 축별 플래그, 안전 높이, 과속, 같은 경보 반복 억제, 조건이 풀렸을 때 해제 통보 |
 | `MotionTests.cs` | 위치 계산 | 오버슈트 금지, 설정 주입, 루프가 명령한 속도로 도는지 |
+| `DeviceConfigTests.cs` | 설정 로드 | 파일 없음·깨진 JSON·빈 JSON에서 기본값 유지, 포트 반영, 실제 `appsettings.json` 파싱 |
+| `MainViewModelTests.cs` | 뷰모델 생성 | 생성만으로는 서버 포트를 잡지 않는지, 설정 경고가 상태줄에 뜨는지 |
 
 SLMP 테스트는 서버를 빈 포트에 띄우고 실제 TCP로 말을 겁니다. 파서만 리플렉션으로 끄집어내 부르는 것보다, 프레임 파싱부터 응답 빌드와 부분 수신 재조립까지 와이어 그대로 확인하는 편이 믿을 만하다고 봤습니다. 서비스와 모델이 전부 `internal`이라 테스트 어셈블리에만 `InternalsVisibleTo`로 문을 열어줬습니다.
 
@@ -278,9 +282,13 @@ SLMP 쪽 시나리오는 여섯 개입니다.
   "AlarmZMin": -60.0,
   "AlarmZMax": 0.0,
   "MaxSpeed": 100.0,          // 보간 최대 속도 (mm/s) — |V|의 상한
-  "AlarmMaxVelocity": 150.0   // 과속 경보 임계 (mm/s) — MaxSpeed 이상이면 도달 불가
+  "AlarmMaxVelocity": 150.0,  // 과속 경보 임계 (mm/s) — MaxSpeed 이상이면 도달 불가
+  "SlmpPort": 5007,           // SLMP 3E 서버 리슨 포트
+  "OpcUaPort": 4840           // OPC UA 서버 리슨 포트
 }
 ```
+
+읽기는 `DeviceConfig.Load()`가 맡습니다. 파일이 없으면 조용히 기본값을 쓰고, 있는데 못 읽으면 기본값으로 뜬 뒤 상태줄에 사유를 남깁니다. 설정 하나 때문에 앱이 못 뜨는 일은 없습니다.
 
 물리적 한계와 알람 경계는 다른 겁니다. 앞은 축이 실제로 갈 수 있는 범위(클램프)고, 뒤는 그 안에서 경보를 울릴 기준선입니다.
 
@@ -293,7 +301,7 @@ DigitalTwin.Dashboard/
 ├── Models/
 │   ├── AxisData.cs          축 위치·속도 DTO
 │   ├── AlarmData.cs         알람 (그룹화 정보 포함)
-│   ├── DeviceConfig.cs      appsettings 바인딩
+│   ├── DeviceConfig.cs      appsettings 바인딩 + 로드(Load)
 │   └── SystemStatus.cs      시스템 가동 상태
 ├── Services/
 │   ├── DeviceTable.cs       단일 진실 + 불변 스냅샷
@@ -307,7 +315,9 @@ DigitalTwin.Dashboard/
 ├── DigitalTwin.Dashboard.Tests/
 │   ├── Slmp/                프레임 해석기 · 워드 변환 테스트
 │   ├── ErrorDetectorTests.cs
-│   └── MotionTests.cs
+│   ├── MotionTests.cs
+│   ├── DeviceConfigTests.cs
+│   └── MainViewModelTests.cs
 ├── SlmpTestClient/          실행 중인 앱 대상 프로토콜 검증 콘솔
 ├── OpcUaTestClient/
 ├── .github/workflows/       CI 워크플로
@@ -319,12 +329,11 @@ DigitalTwin.Dashboard/
 ## 아직 안 된 것들
 
 - 그리퍼 Pick/Place는 Unity 키보드로만 됩니다. 명령 채널은 Unity에 이미 있는데 대시보드 쪽 송신 UI가 아직 없습니다.
-- SLMP와 OPC UA 포트가 코드에 박혀 있습니다. `appsettings.json`으로 옮길 생각입니다.
 - OPC UA는 익명 접속만 됩니다. 인증서나 서명·암호화 같은 보안 정책은 붙이지 않았습니다.
 - 가상 PLC는 등속 이동 모델이라 가감속 프로파일이 없습니다.
 - 제어 루프는 목표 100Hz에 못 미치고 실제로는 ~64Hz입니다. Windows 타이머 해상도 한계이고 이동량·속도는 실측 시간으로 보정하니 정확도 문제는 없지만, 샘플링 밀도는 목표의 3분의 2쯤입니다. 진짜 100Hz가 필요하면 타이머 해상도를 올리는 별도 조치를 해야 합니다.
 - 기본 설정(`MaxSpeed` 100 / `AlarmMaxVelocity` 150)에서는 과속 경보가 울리지 않습니다. 시작할 때 경고로 알려주긴 하지만, 쓰려면 두 값을 손봐야 합니다.
-- 자동 테스트는 `Services`와 `Models`까지입니다. `MainViewModel`과 UI, `UnityIPCService`, `OpcUaServer`는 아직 눈으로 확인하고 있습니다.
+- 자동 테스트는 `Services`·`Models`와 `MainViewModel` 생성 시점까지입니다. `Initialize()` 이후의 커맨드·타이머 동작과 UI, `UnityIPCService`, `OpcUaServer`는 아직 눈으로 확인하고 있습니다. 상태 갱신이 `Application.Current.Dispatcher`를 직접 부르는 탓에 커맨드는 WPF 앱 없이는 부를 수 없습니다.
 
 ## 로드맵
 
