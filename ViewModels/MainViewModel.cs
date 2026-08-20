@@ -29,7 +29,7 @@ namespace DigitalTwin.Dashboard.ViewModels
 
         // Timers
         private DispatcherTimer _clockTimer;
-        private DispatcherTimer _vmUpdateTimer;
+        private DispatcherTimer _uiUpdateTimer;
 
         // Initialize()가 서버·타이머를 두 번 켜지 않도록 하는 표시
         private bool _isInitialized;
@@ -40,7 +40,10 @@ namespace DigitalTwin.Dashboard.ViewModels
         private readonly List<double> _cycleTimes = new();
         private bool _isHoming = false;
 
-        public DeviceTable DeviceTable => _deviceTable;
+        // ~30Hz UI 갱신 타이머가 읽은 스냅샷을 그대로 넘긴다.
+        // View 전용 갱신(차트)은 자기 타이머를 따로 돌리지 말고 이 이벤트를 받는다 —
+        // 같은 주기에 Snapshot()을 두 번 읽으면 두 화면이 서로 다른 시점을 그리게 된다.
+        public event Action<DeviceSnapshot>? SnapshotUpdated;
 
         #region Bound Properties
 
@@ -199,17 +202,19 @@ namespace DigitalTwin.Dashboard.ViewModels
             };
             _clockTimer.Start();
 
-            _vmUpdateTimer = new DispatcherTimer
+            // 화면 갱신은 이 타이머 하나뿐이다(~30Hz). 텍스트·사이클 판정·차트가 모두
+            // 여기서 읽은 스냅샷 한 개를 공유한다.
+            _uiUpdateTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(33)
             };
-            _vmUpdateTimer.Tick += VmUpdateTimer_Tick;
-            _vmUpdateTimer.Start();
+            _uiUpdateTimer.Tick += UiUpdateTimer_Tick;
+            _uiUpdateTimer.Start();
         }
 
         #region Timer Tick Handlers
 
-        private void VmUpdateTimer_Tick(object? sender, EventArgs e)
+        private void UiUpdateTimer_Tick(object? sender, EventArgs e)
         {
             var s = _deviceTable.Snapshot();
 
@@ -234,6 +239,9 @@ namespace DigitalTwin.Dashboard.ViewModels
             }
 
             CheckCycleCompletion(s);
+
+            // View 전용 갱신(차트)에 같은 스냅샷을 넘긴다.
+            SnapshotUpdated?.Invoke(s);
         }
 
         private void CheckCycleCompletion(DeviceSnapshot s)
@@ -558,7 +566,7 @@ namespace DigitalTwin.Dashboard.ViewModels
         public void Dispose()
         {
             _clockTimer?.Stop();
-            _vmUpdateTimer?.Stop();
+            _uiUpdateTimer?.Stop();
 
             if (_virtualPLC != null)
             {

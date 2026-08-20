@@ -9,7 +9,6 @@ using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.Defaults;
 using SkiaSharp;
-using System.Windows.Threading;
 
 namespace DigitalTwin.Dashboard
 {
@@ -17,9 +16,6 @@ namespace DigitalTwin.Dashboard
     {
         // View Model
         private readonly MainViewModel _viewModel;
-
-        // Timers for View-only updates (Chart)
-        private DispatcherTimer _uiTimer;  // ~30Hz Snapshot 폴링 (P5)
 
         // Chart Data
         private const int MaxDataPoints = 100;
@@ -37,7 +33,10 @@ namespace DigitalTwin.Dashboard
             DataContext = _viewModel;
 
             InitializeChart();
-            InitializeTimers();
+
+            // 차트는 뷰모델의 ~30Hz 타이머가 읽은 스냅샷을 그대로 받는다(타이머를 따로 두지 않는다).
+            // Initialize()가 타이머를 켜기 전에 붙여야 첫 틱부터 그린다.
+            _viewModel.SnapshotUpdated += ViewModel_SnapshotUpdated;
 
             // 서버·타이머 기동. 생성자에서 분리했을 뿐 시점은 종전과 같다(창이 뜰 때 자동).
             _viewModel.Initialize();
@@ -46,17 +45,6 @@ namespace DigitalTwin.Dashboard
         }
 
         #region Initialization
-
-        private void InitializeTimers()
-        {
-            // ~30Hz UI 폴링 타이머: DeviceTable Snapshot을 읽어 차트 갱신 (P5)
-            _uiTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(33)
-            };
-            _uiTimer.Tick += UiTimer_Tick;
-            _uiTimer.Start();
-        }
 
         private void InitializeChart()
         {
@@ -165,10 +153,9 @@ namespace DigitalTwin.Dashboard
 
         #region UI Tick (Chart Only)
 
-        // ~30Hz UI 폴링: DeviceTable Snapshot을 읽어 차트 갱신
-        private void UiTimer_Tick(object? sender, EventArgs e)
+        // 뷰모델의 ~30Hz 타이머가 읽은 스냅샷으로 차트를 갱신한다(UI 스레드에서 호출됨).
+        private void ViewModel_SnapshotUpdated(DeviceSnapshot s)
         {
-            var s = _viewModel.DeviceTable.Snapshot();
             UpdateChart(s);
         }
 
@@ -240,8 +227,11 @@ namespace DigitalTwin.Dashboard
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
-            // 타이머 정지
-            _uiTimer?.Stop();
+            // 차트 구독 해제 (타이머 정지는 뷰모델 Dispose가 한다)
+            if (_viewModel != null)
+            {
+                _viewModel.SnapshotUpdated -= ViewModel_SnapshotUpdated;
+            }
 
             // View Model 리소스 해제
             _viewModel?.Dispose();
