@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using DigitalTwin.Dashboard.Helpers;
 
 namespace DigitalTwin.Dashboard.Services
 {
@@ -58,7 +59,7 @@ namespace DigitalTwin.Dashboard.Services
             _listener = new TcpListener(IPAddress.Any, _port);
             _listener.Start();
 
-            Console.WriteLine($"SLMP 3E 서버 리슨 시작: :{_port}");
+            AppLog.Info("SLMP", $"서버 리슨 시작: :{_port}");
 
             _ = Task.Run(() => AcceptLoop(_cts.Token));
         }
@@ -77,12 +78,13 @@ namespace DigitalTwin.Dashboard.Services
             {
                 _listener?.Stop();
             }
-            catch
+            catch (Exception e)
             {
-                // 리스너 종료 중 예외는 무시
+                // 리스너 종료 중 예외는 정지 흐름을 막지 않는다 — 기록만 남긴다.
+                AppLog.Debug("SLMP", $"리스너 종료 중 예외(무시): {e.Message}");
             }
 
-            Console.WriteLine("SLMP 서버 정지");
+            AppLog.Info("SLMP", "서버 정지");
         }
 
         private async Task AcceptLoop(CancellationToken token)
@@ -103,6 +105,7 @@ namespace DigitalTwin.Dashboard.Services
             {
                 if (!token.IsCancellationRequested)
                 {
+                    AppLog.Error("SLMP", $"Accept 오류: {e.Message}", e);
                     OnError?.Invoke($"SLMP Accept 오류: {e.Message}");
                 }
             }
@@ -156,6 +159,7 @@ namespace DigitalTwin.Dashboard.Services
             {
                 if (!token.IsCancellationRequested)
                 {
+                    AppLog.Error("SLMP", $"클라이언트 처리 오류: {e.Message}", e);
                     OnError?.Invoke($"SLMP 클라이언트 처리 오류: {e.Message}");
                 }
             }

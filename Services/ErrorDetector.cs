@@ -1,3 +1,4 @@
+using DigitalTwin.Dashboard.Helpers;
 using DigitalTwin.Dashboard.Models;
 
 namespace DigitalTwin.Dashboard.Services
@@ -181,6 +182,7 @@ namespace DigitalTwin.Dashboard.Services
                 // 해제된 조건이 다시 성립하면 새 사건이므로 억제창을 초기화한다.
                 _lastAlarmTimes.Remove(code);
 
+                AppLog.Info("ALARM", $"해제: {code}");
                 OnErrorCleared?.Invoke(code);
             }
         }
@@ -208,6 +210,9 @@ namespace DigitalTwin.Dashboard.Services
 
             // 새로운 에러이거나 간격이 지난 에러 → 알람 발생
             _lastAlarmTimes[errorKey] = now;
+
+            // 억제창을 통과한 것만 기록한다 — 100Hz 판정이 그대로 파일로 쏟아지지 않는다.
+            AppLog.Warn("ALARM", $"[{level}] {location} {code}: {message}");
 
             OnErrorDetected?.Invoke(new AlarmData
             {

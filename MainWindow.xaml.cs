@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
+using DigitalTwin.Dashboard.Helpers;
 using DigitalTwin.Dashboard.Models;
 using DigitalTwin.Dashboard.Services;
 using DigitalTwin.Dashboard.ViewModels;
@@ -40,6 +41,8 @@ namespace DigitalTwin.Dashboard
 
             // 서버·타이머 기동. 생성자에서 분리했을 뿐 시점은 종전과 같다(창이 뜰 때 자동).
             _viewModel.Initialize();
+
+            AppLog.Info("UI", "메인 창 준비 완료");
 
             Closing += MainWindow_Closing;
         }
@@ -235,6 +238,8 @@ namespace DigitalTwin.Dashboard
 
             // View Model 리소스 해제
             _viewModel?.Dispose();
+
+            AppLog.Info("UI", "메인 창 닫힘");
         }
 
         #endregion

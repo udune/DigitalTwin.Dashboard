@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DigitalTwin.Dashboard.Helpers;
 using DigitalTwin.Dashboard.Models;
 using DigitalTwin.Dashboard.Services;
 
@@ -136,6 +137,7 @@ namespace DigitalTwin.Dashboard.ViewModels
         {
             if (configWarning != null)
             {
+                AppLog.Warn("Config", configWarning);
                 _statusMessage = configWarning;
                 _statusMessageBrush = new SolidColorBrush(Colors.Yellow);
             }
@@ -179,6 +181,8 @@ namespace DigitalTwin.Dashboard.ViewModels
                 return;
             }
             _isInitialized = true;
+
+            AppLog.Info("VM", "초기화 시작 — SLMP/OPC UA 기동");
 
             _slmp.Start();
             _opcua.Start();
@@ -287,10 +291,12 @@ namespace DigitalTwin.Dashboard.ViewModels
                 _systemStatus.IsPlcConnected = true;
                 UpdatePlcStatus(true);
 
+                AppLog.Info("VM", "시스템 가동 시작 (PLC + Unity IPC)");
                 UpdateStatus("시스템 가동 중", Colors.LimeGreen);
             }
             catch (Exception ex)
             {
+                AppLog.Error("VM", $"시스템 시작 실패: {ex.Message}", ex);
                 UpdateStatus($"시작 실패: {ex.Message}", Colors.Red);
                 System.Windows.MessageBox.Show($"시스템 시작 오류:\n{ex.Message}", "오류",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
@@ -306,6 +312,7 @@ namespace DigitalTwin.Dashboard.ViewModels
         {
             _virtualPLC.Stop();
             _systemStatus.IsRunning = false;
+            AppLog.Info("VM", "시스템 정지");
             UpdateStatus("시스템 정지됨", Colors.Orange);
         }
 
@@ -364,6 +371,7 @@ namespace DigitalTwin.Dashboard.ViewModels
                     }
                 }
 
+                AppLog.Info("VM", $"알람 {Alarms.Count}건 내보내기: {Path.GetFullPath(filePath)}");
                 UpdateStatus($"알람 {Alarms.Count}건 내보내기 완료", Colors.LimeGreen);
                 System.Windows.MessageBox.Show($"알람 기록이 저장되었습니다.\n\n" +
                               $"파일: {filePath}\n" +
@@ -376,6 +384,7 @@ namespace DigitalTwin.Dashboard.ViewModels
             }
             catch (Exception ex)
             {
+                AppLog.Error("VM", $"알람 내보내기 실패: {ex.Message}", ex);
                 UpdateStatus($"내보내기 실패: {ex.Message}", Colors.Red);
                 System.Windows.MessageBox.Show($"알람 내보내기 오류:\n{ex.Message}",
                               "오류",
@@ -565,6 +574,8 @@ namespace DigitalTwin.Dashboard.ViewModels
 
         public void Dispose()
         {
+            AppLog.Info("VM", "종료 정리 시작 — 타이머·서비스 해제");
+
             _clockTimer?.Stop();
             _uiUpdateTimer?.Stop();
 

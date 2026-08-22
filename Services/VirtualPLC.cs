@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DigitalTwin.Dashboard.Helpers;
 using DigitalTwin.Dashboard.Models;
 
 namespace DigitalTwin.Dashboard.Services
@@ -145,6 +146,7 @@ namespace DigitalTwin.Dashboard.Services
                 }
                 catch (Exception e)
                 {
+                    AppLog.Error("PLC", $"UpdateLoop 오류: {e.Message}", e);
                     OnError?.Invoke($"UpdateLoop 전송 오류: {e.Message}");
                 }
             }

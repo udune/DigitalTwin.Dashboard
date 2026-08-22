@@ -1,4 +1,5 @@
-﻿using DigitalTwin.Dashboard.Models;
+﻿using DigitalTwin.Dashboard.Helpers;
+using DigitalTwin.Dashboard.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
@@ -73,7 +74,7 @@ namespace DigitalTwin.Dashboard.Services
 
                     pipeServer = server;
 
-                    Console.WriteLine("유니티 연결 대기중...");
+                    AppLog.Info("IPC", $"유니티 연결 대기중... (pipe: {PipeName})");
 
                     await server.WaitForConnectionAsync(token);
 
@@ -83,7 +84,7 @@ namespace DigitalTwin.Dashboard.Services
                     isConnected = true;
                     wasConnected = true;
 
-                    Console.WriteLine("유니티 연결 성공!");
+                    AppLog.Info("IPC", "유니티 연결 성공");
                     OnConnected?.Invoke();
 
                     // ★ 반드시 await — 던져놓으면 연결 종료 시점을 알 수 없어 재대기가 불가능. (§4-2)
@@ -95,6 +96,7 @@ namespace DigitalTwin.Dashboard.Services
                 }
                 catch (Exception e)
                 {
+                    AppLog.Error("IPC", $"연결 처리 오류: {e.Message}", e);
                     OnError?.Invoke($"IPC 오류: {e.Message}");
                 }
                 finally
@@ -104,7 +106,11 @@ namespace DigitalTwin.Dashboard.Services
                     try { server?.Dispose(); } catch { }
 
                     // 끊김 통보는 여기 한 곳에서만, 실제로 연결됐던 경우에만 1회. (§4-3)
-                    if (wasConnected) OnDisconnected?.Invoke();
+                    if (wasConnected)
+                    {
+                        AppLog.Info("IPC", "유니티 연결 끊김 — 재대기");
+                        OnDisconnected?.Invoke();
+                    }
                 }
 
                 // 연속 실패 시 CPU를 태우지 않도록 재대기 전 짧은 지연. (§4-2 #5)
@@ -171,6 +177,7 @@ namespace DigitalTwin.Dashboard.Services
             }
             catch (Exception e)
             {
+                AppLog.Warn("IPC", $"메시지 파싱 오류: {e.Message}", e);
                 OnError?.Invoke($"메시지 파싱 오류: {e.Message}");
             }
         }
@@ -205,6 +212,7 @@ namespace DigitalTwin.Dashboard.Services
                 }
                 catch (Exception e)
                 {
+                    AppLog.Error("IPC", $"전송 오류: {e.Message}", e);
                     OnError?.Invoke($"전송 오류: {e.Message}");
                 }
             }
@@ -273,7 +281,7 @@ namespace DigitalTwin.Dashboard.Services
             // Accept 루프가 정리를 마칠 때까지 짧게 기다린다.
             try { acceptLoopTask?.Wait(TimeSpan.FromSeconds(1)); } catch { }
 
-            Console.WriteLine("Service stopped");
+            AppLog.Info("IPC", "서비스 정지");
         }
     }
 }

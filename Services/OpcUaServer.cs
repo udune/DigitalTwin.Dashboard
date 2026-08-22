@@ -2,6 +2,7 @@ using System.IO;
 using Opc.Ua;
 using Opc.Ua.Configuration;
 using Opc.Ua.Server;
+using DigitalTwin.Dashboard.Helpers;
 
 namespace DigitalTwin.Dashboard.Services
 {
@@ -71,11 +72,12 @@ namespace DigitalTwin.Dashboard.Services
                     _server = new PickPlaceServer(_deviceTable);
                     await _application.StartAsync(_server);
 
-                    Console.WriteLine($"OPC UA 서버 리슨 시작: opc.tcp://localhost:{_port}");
+                    AppLog.Info("OPCUA", $"서버 리슨 시작: opc.tcp://localhost:{_port}");
                 }
                 catch (Exception e)
                 {
                     _isRunning = false;
+                    AppLog.Error("OPCUA", $"Start 오류: {e.Message}", e);
                     OnError?.Invoke($"OPC UA Start 오류: {e.Message}");
                 }
             });
@@ -94,9 +96,10 @@ namespace DigitalTwin.Dashboard.Services
             {
                 _application?.Stop();
             }
-            catch
+            catch (Exception e)
             {
-                // 종료 중 예외는 무시
+                // 종료 중 예외는 정지 흐름을 막지 않는다 — 기록만 남긴다.
+                AppLog.Debug("OPCUA", $"서버 종료 중 예외(무시): {e.Message}");
             }
             finally
             {
@@ -104,7 +107,7 @@ namespace DigitalTwin.Dashboard.Services
                 _application = null;
             }
 
-            Console.WriteLine("OPC UA 서버 정지");
+            AppLog.Info("OPCUA", "서버 정지");
         }
 
         private ApplicationConfiguration BuildConfiguration()
